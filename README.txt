@@ -4,7 +4,7 @@ Project:
 
 Description:
 
-	Implementation of algorithms, utilities, extensions and plugins for TSC Experiments
+	Implementation of algorithms, utilities, extensions and plugins for 	TSC Experiments
 
 Status:
 
