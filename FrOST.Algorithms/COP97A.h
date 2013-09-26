@@ -1,8 +1,8 @@
-//#ifdef COP97ADLL_EXPORTS
-//#define  __declspec(dllexport) 
-//#else
-//#define  __declspec(dllimport) 
-//#endif
+#ifdef FROSTALGORITHMS_EXPORTS
+#define  COP97A_API __declspec(dllexport) 
+#else
+#define COP97A_API  __declspec(dllimport) 
+#endif
 
 // Compile Options:  /GX
 namespace std {
@@ -22,48 +22,48 @@ namespace COP97A {
 	{
 	public: 
 		//Cop97A();
-		 Cop97A(char*, int);	//load from file
-		 Cop97A(std::vector<int>, int, int);	//load from vector
-		 Cop97A(char*, int, int, int); //load from string
-		 Cop97A(char*, int, int); //load from file with Horizon
-		 Cop97A::Cop97A(std::vector<std::vector<int> >, int iphase, int horizon); // load from multiarray
-		 Cop97A::Cop97A(int iphase, int horizon);
-		 std::vector<int> getFeasibleGreens(int, int);
-		 int getInitialPhase();
-		 int getRed();
-		 int getQ(int, int, int);
-		 int getArrivals(int, int, int);
-		 int getB(int, int, int);
-		 int getM(int, int); 
-		 int getT(int, int); 
-		 std::vector<int> getOptimalControl(); 
-		 float getSaturationFlow(int); 
-		 void setSaturationFlow(int phi, float satFlow);
-		 void setStartupLostTime(float time);
-		 void setInitialPhase(int p);
-		 void setMinGreenTime(int mingreen);
-		 void setMaxGreenTime(int maxgreen);
-		 void setRedTime(int redd);
-		 void setLanePhases(int phi, int lanes);
-		 void setHorizon(int h);
-		 void setMaxPhCompute(int mp);
-		 void setArrivals(std::vector<std::vector<int> > arrivals);
-		 int getArrivalEarliest(int, int, int, int); //NEW
+		 COP97A_API Cop97A(char*, int);	//load from file
+		 COP97A_API Cop97A(std::vector<int>, int, int);	//load from vector
+		 COP97A_API Cop97A(char*, int, int, int); //load from string
+		 COP97A_API Cop97A(char*, int, int); //load from file with Horizon
+		 COP97A_API Cop97A::Cop97A(std::vector<std::vector<int> >, int iphase, int horizon); // load from multiarray
+		 COP97A_API Cop97A::Cop97A(int iphase, int horizon);
+		 COP97A_API std::vector<int> getFeasibleGreens(int, int);
+		 COP97A_API int getInitialPhase();
+		 COP97A_API  int getRed();
+		 COP97A_API int getQ(int, int, int);
+		 COP97A_API int getArrivals(int, int, int);
+		 COP97A_API int getB(int, int, int);
+		 COP97A_API int getM(int, int); 
+		 COP97A_API int getT(int, int); 
+		 COP97A_API std::vector<int> getOptimalControl(); 
+		 COP97A_API float getSaturationFlow(int); 
+		 COP97A_API void setSaturationFlow(int phi, float satFlow);
+		 COP97A_API void setStartupLostTime(float time);
+		 COP97A_API void setInitialPhase(int p);
+		 COP97A_API void setMinGreenTime(int mingreen);
+		 COP97A_API void setMaxGreenTime(int maxgreen);
+		 COP97A_API void setRedTime(int redd);
+		 COP97A_API void setLanePhases(int phi, int lanes);
+		 COP97A_API void setHorizon(int h);
+		 COP97A_API void setMaxPhCompute(int mp);
+		 COP97A_API void setArrivals(std::vector<std::vector<int> > arrivals);
+		 COP97A_API int getArrivalEarliest(int, int, int, int); //NEW
 
-		 void resizeArrivals();
-		 void initMatrices(int);
-		 void printVector(std::vector<int> );
-		 void printMatrix(std::vector<std::vector<int> > );
-		 std::vector<int> printSequence(int[], int);
-		 void printArrivals();
+		 COP97A_API void resizeArrivals();
+		 COP97A_API void initMatrices(int);
+		 COP97A_API void printVector(std::vector<int> );
+		 COP97A_API void printMatrix(std::vector<std::vector<int> > );
+		 COP97A_API std::vector<int> printSequence(int[], int);
+		 COP97A_API void printArrivals();
 
-		 std::vector<int> RunCOP();
-		 bool loadFromFile(char*);
-		 bool loadFromSeq(char*, unsigned int, int);
-		 bool loadFromVector(std::vector<int>, int);
-		 void initParameters();
+		 COP97A_API std::vector<int> RunCOP();
+		 COP97A_API bool loadFromFile(char*);
+		 COP97A_API bool loadFromSeq(char*, unsigned int, int);
+		 COP97A_API bool loadFromVector(std::vector<int>, int);
+		 COP97A_API void initParameters();
 
-		 void setOutput(bool);
+		 COP97A_API void setOutput(bool);
 
 	private:
 

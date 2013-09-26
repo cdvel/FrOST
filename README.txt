@@ -1,10 +1,10 @@
-Project:
+Project: 
 
 	FRamework for Optimisation and Simulation of TS
 
 Description:
 
-	Implementation of algorithms, utilities, extensions and plugins for 	TSC Experiments
+	Implementation of algorithms, utilities and extensions TSC Experiments
 
 Status:
 

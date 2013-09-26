@@ -1,8 +1,8 @@
 ========================================================================
-    CONSOLE APPLICATION : FrOST.Algorithms Project Overview
+    DYNAMIC LINK LIBRARY : FrOST.Algorithms Project Overview
 ========================================================================
 
-AppWizard has created this FrOST.Algorithms application for you.
+AppWizard has created this FrOST.Algorithms DLL for you.
 
 This file contains a summary of what you will find in each of the files that
 make up your FrOST.Algorithms application.
@@ -22,7 +22,15 @@ FrOST.Algorithms.vcxproj.filters
     "Source Files" filter).
 
 FrOST.Algorithms.cpp
-    This is the main application source file.
+    This is the main DLL source file.
+
+	When created, this DLL does not export any symbols. As a result, it
+	will not produce a .lib file when it is built. If you wish this project
+	to be a project dependency of some other project, you will either need to
+	add code to export some symbols from the DLL so that an export library
+	will be produced, or you can set the Ignore Input Library property to Yes
+	on the General propert page of the Linker folder in the project's Property
+	Pages dialog box.
 
 /////////////////////////////////////////////////////////////////////////////
 Other standard files:

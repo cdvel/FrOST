@@ -39,21 +39,41 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <LinkIncremental>true</LinkIncremental>
+    <OutDir>Debug\</OutDir>
+    <IntDir>Debug\</IntDir>
+    <TargetName>FrOSTSim</TargetName>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <LinkIncremental>false</LinkIncremental>
+    <OutDir>Debug\</OutDir>
+    <IntDir>Debug\</IntDir>
+    <TargetName>FrOST2QP</TargetName>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
-      <PreprocessorDefinitions>WIN32;_DEBUG;_WINDOWS;_USRDLL;FROSTSIMULATION_EXPORTS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>_DEBUG;WIN32;_WINDOWS;_USRDLL;PLUGIN_EXPORTS;__i386__;MODELLER_BUILD;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>..\Debug\;..\FrOST.Algorithms\;.;..\..\include;..\..\include\user;..\FrOST.Algorithms\Debug\;'C:\Users\cesar\Dropbox\Paramics CODE\FrOST\Debug';'C:\Users\cesar\Dropbox\Paramics CODE\FrOST\FrOST.Algorithms\Debug';%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PrecompiledHeaderOutputFile>.\Debug/modeller/obj/modeller.pch</PrecompiledHeaderOutputFile>
+      <AssemblerListingLocation>.\Debug/modeller/obj/</AssemblerListingLocation>
+      <ObjectFileName>.\Debug/modeller/obj/</ObjectFileName>
+      <ProgramDataBaseFileName>.\Debug/modeller/obj/</ProgramDataBaseFileName>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
+      <OutputFile>Debug/FrOSTSim.dll</OutputFile>
+      <AdditionalDependencies>simcore.lib;modeller.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>..\Debug\;..\..\lib;../../bin/win32/opt;..\FrOST.Algorithms\;.\FrOST.Algorithms\;..\FrOST.Algorithms\Debug\;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <ProgramDatabaseFile>.\Debug/modeller/bin/FrOSTSim.pdb</ProgramDatabaseFile>
+      <ImportLibrary>
+      </ImportLibrary>
     </Link>
+    <Bscmake>
+      <OutputFile>.\Debug/modeller/bin/modeller.bsc</OutputFile>
+    </Bscmake>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <ClCompile>
@@ -69,6 +89,7 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
+      <OutputFile>Debug/FrOST2QP.dll</OutputFile>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
@@ -86,12 +107,18 @@
       <CompileAsManaged Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">false</CompileAsManaged>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
       </PrecompiledHeader>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="FrOST.Simulation.cpp" />
     <ClCompile Include="stdafx.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Create</PrecompiledHeader>
     </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\FrOST.Algorithms\FrOST.Algorithms.vcxproj">
+      <Project>{ac7686e5-8ee4-4343-a317-f1cb9883caa0}</Project>
+    </ProjectReference>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

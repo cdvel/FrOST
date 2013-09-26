@@ -4,7 +4,7 @@
 #include <fstream>
 #include <string>
 #include <sstream>
-#include "COP97ADll.h"
+#include "COP97A.h"
 #include <algorithm>
 #include <iomanip>
 

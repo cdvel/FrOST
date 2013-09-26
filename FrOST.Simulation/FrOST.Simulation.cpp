@@ -1,13 +1,6 @@
 // FrOST.Simulation.cpp : Defines the exported functions for the DLL application.
 //
-
-/* -----------------------------------------------------------------------
-* Traffic Control with Prediction Plugin for Quadstone Paramics
-* University of Nottingham	 Ningbo China Campus
-* Computer Science		         
-* Cesar Velandia		EMAIL: cesar.velandia@nottingham.edu.cn
-* ----------------------------------------------------------------------- */  
-
+#include "stdafx.h"
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -31,7 +24,8 @@ extern "C" {
 
 using namespace std;
 
-#include "Cop97ADll.h"
+#include "Cop97A.h"
+	
 
 /*
 * Simple prediction plugin that obtains arrival data using upstream
