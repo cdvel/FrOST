@@ -4,6 +4,9 @@
 #define COP97A_API  __declspec(dllimport) 
 #endif
 
+#ifndef FROST_ALGORITHMS_COP97A
+#define FROST_ALGORITHMS_COP97A
+
 // Compile Options:  /GX
 namespace std {
 #include <cstdlib>
@@ -96,3 +99,5 @@ namespace COP97A {
 
 	};
 }
+
+#endif

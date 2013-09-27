@@ -25,7 +25,7 @@ extern "C" {
 using namespace std;
 
 #include "Cop97A.h"
-	
+
 
 /*
 * Simple prediction plugin that obtains arrival data using upstream
