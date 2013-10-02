@@ -1,6 +1,12 @@
-// FrOST.Simulation.cpp : Defines the exported functions for the DLL application.
-//
-#include "stdafx.h"
+/* -----------------------------------------------------------------------
+* QP Simulation plugin
+*
+* Run the selected controller algorithm to compute control sequences 
+* based on upstream data and arrival predictions.
+*
+* ----------------------------------------------------------------------- */
+
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -16,45 +22,28 @@
 #include <time.h> 
 #include <windows.h>
 #include <process.h>
-#include<random>
+#include <random>
 
 extern "C" {
 #include "programmer.h"
 }
 
-using namespace std;
-
 #include "Cop97A.h"
 
+using namespace std;
 
-/*
-* Simple prediction plugin that obtains arrival data using upstream
-* loop detector information
-* 
-*/
+/* ---------- define ----------------------- */
 
-/*
+#define 	PHASE_COUNT 3       /* the number of phases */
+#define 	MOVEMENT_COUNT 10       /* the number of phases */
+#define		INITIAL_PHASE_INDEX 2   
+#define		NUM_LANES 2
+#define		MIN_GREEN 2
+#define		MAX_GREEN 55
+#define		HORIZON_SIZE 70      
+#define		UPSTREAM_DETECTOR_DISTANCE 700       /* metres */
 
-phase A = WE - SE
-phase B = WN - ES (protected left turn)
-phase C = NS - SN
-
-*/
-
-
-#define PHASE_COUNT 3       /* the number of phases */
-#define HORIZON_SIZE 70      
-#define INITIAL_PHASE_INDEX 2      
-#define MIN_GREEN 2      
-#define UPSTREAM_DETECTOR_DISTANCE 700       /* metres */
-
-const char phases [3] = {'A', 'B', 'C'};
-int prevCount1 = 0;
-int prevCount2 = 0;
-
-Bool busy = PFALSE;
-
-int horizon1[HORIZON_SIZE][PHASE_COUNT]; 
+/* -------- data structures --------- */
 
 typedef struct LOOPDATA_s    LOOPDATA;
 
@@ -64,7 +53,7 @@ struct LOOPDATA_s
 	DETECTOR * upstreamDetector;
 	int lane;
 	int lastCount;
-	int phase;				//A = 0, B = 1, C = 2
+	int phase;
 };
 
 typedef struct ARRIVALDATA_s    ARRIVALDATA;
@@ -74,36 +63,53 @@ struct ARRIVALDATA_s
 	float arrivalTime;
 	float detectionTime;
 	float speed;
-	int phase;				//A = 0, B = 1, C = 2
+	int phase;
 };
 
-static LOOPDATA loopDetectorData[8]; //4 upstrDetectors, 2 loops each
-static DETECTOR* upstrDetectors[4]; // 4-arm intersection / per approach
-static DETECTOR* stoplDetectors[4]; // 4-arm intersection / per approach
-static int numLanes = 2;
+typedef struct SIGPRI_s    SIGPRI;
+struct SIGPRI_s
+{
+	string inlink;
+	string outlink;
+	int	  priority;    
+};
 
+/* -------- network elements --------- */
+
+static char*	junctionNode =     "5";   //node to control
+NODE*	jNode = NULL;
+static LOOPDATA loopDetectorData[8]; /* 4 upstrDetectors, 2 loops each */
+static DETECTOR* upstrDetectors[4];  /* 4-arm intersection  per approach */
+static DETECTOR* stoplDetectors[4]; 
+
+/* -------- phasing and prediction --------- */
+
+const char	phases [3] = {'A', 'B', 'C'}; /* A = WE - SE ; B = WN - ES (protected left turn) ; C = NS - SN */
 std::vector<ARRIVALDATA> detectedArrivals;
+std::vector<std::vector<SIGPRI> > phasing;
 std::vector<std::vector<int> > arrivalsHorizon;
-
-//simplified turning proportions, must agree OD Matrix
-
-double leftTurnProportion = 0.2;
+double leftTurnProportion = 0.2; /* simplified turning proportions, must agree OD Matrix */
 double rightTurnProportion = 0.1;
+const char * phasing_file = "c:\\temp\\phasing.txt";
+//const char * phasing_file = "phasing.txt";
+
+/* -------- controller --------- */
 
 vector<COP97A::Cop97A> instances;
 vector<int> control;
 
 HANDLE hThread = NULL;
 unsigned threadID;
-
-unsigned Counter; 
-
 bool  isThreadRunning = false;
 bool  closeHandle = false;
 
+
+/* ---------------------------------------------------------------------
+* Thread function runs algorithm and updates optimal control sequence
+* --------------------------------------------------------------------- */
+
 unsigned __stdcall COPThreadFunc( void* data )
 {
-
 	clock_t tStart = clock();
 	control = instances[0].RunCOP();
 	double ttaken = (double)(clock() - tStart)/CLOCKS_PER_SEC;
@@ -124,7 +130,6 @@ unsigned __stdcall COPThreadFunc( void* data )
 	float mm =  fmod(hh, 60);
 	hh = hh / 60;
 
-
 	qps_GUI_printf("\a %im %4.2fs \t%4.2fs \t %s ",(int)hh ,mm, ttaken, message.str().c_str());
 
 	isThreadRunning = false;
@@ -132,10 +137,94 @@ unsigned __stdcall COPThreadFunc( void* data )
 	return 0;
 } 
 
-// Called once after the network is loaded.
+/* ---------------------------------------------------------------------
+* split functions
+* --------------------------------------------------------------------- */
+
+std::vector<std::string> &split(const std::string &s, char delim, std::vector<std::string> &elems) {
+	std::stringstream ss(s);
+	std::string item;
+	while (std::getline(ss, item, delim)) {
+		elems.push_back(item);
+	}
+	return elems;
+}
+
+
+std::vector<std::string> split(const std::string &s, char delim) {
+	std::vector<std::string> elems;
+	split(s, delim, elems);
+	return elems;
+}
+
+/* ---------------------------------------------------------------------
+* read phase configuration from file
+* --------------------------------------------------------------------- */
+int toPrioEnum(string val)
+{
+	if (val == "APIPRI_MAJOR")
+		return APIPRI_MAJOR;
+	if (val == "APIPRI_MEDIUM")
+		return APIPRI_MEDIUM;
+	if (val == "APIPRI_MINOR")
+		return APIPRI_MINOR;
+
+	return APIPRI_BARRED;
+}
+
+
+void loadPhasingFile(void)
+{
+	string line;
+	ifstream myfile (phasing_file);
+	int iPhase = 0;
+	int iMov = 0;
+
+
+	if (myfile.is_open())
+	{
+		while ( getline (myfile,line) )
+		{
+			std::vector<std::string> prio = split(line, ' ');
+
+			phasing[iPhase][iMov].inlink = prio[0];
+			phasing[iPhase][iMov].outlink = prio[1];
+			phasing[iPhase][iMov].priority = toPrioEnum(prio[2]);
+
+			if (iMov == 9)
+			{
+				iMov = 0;
+				iPhase ++;
+			}
+			else
+				iMov++;
+		}
+		myfile.close();
+	}
+
+	else qps_GUI_printf("Unable to open file"); 
+
+}
+
+/* ---------------------------------------------------------------------
+* called on startup, initialise and instantiate variables
+* --------------------------------------------------------------------- */
+
 void qpx_NET_postOpen(void)
 {
-	//NEMA ordering i.e. clockwise
+
+	jNode = qpg_NET_node(junctionNode);
+	qps_NDE_externalController(jNode,PTRUE);
+
+	phasing.resize(PHASE_COUNT);
+	for (int p=0; p < PHASE_COUNT; p++)
+	{
+		phasing[p].resize(MOVEMENT_COUNT);
+	}
+
+	loadPhasingFile();
+
+	// clockwise
 	arrivalsHorizon.resize(HORIZON_SIZE);
 	for (int h= 0; h < HORIZON_SIZE; h++)
 	{
@@ -157,11 +246,10 @@ void qpx_NET_postOpen(void)
 	stoplDetectors[2] = qpg_NET_detector("SN_STOPLINE_DETECTOR");
 	stoplDetectors[3] = qpg_NET_detector("WE_STOPLINE_DETECTOR");
 
-	//TODO: This is not NEMA
 	int idxApproach = 0;
-	for (int i = 0; i < 8 ; i ++)
+	for (int i = 0; i < 8 ; i ++)	
 	{
-		int laneDet = i%numLanes + 1;  // 1 or 2
+		int laneDet = i%NUM_LANES + 1;  // 1 or 2
 		loopDetectorData[i].upstreamDetector = upstrDetectors[idxApproach];
 		loopDetectorData[i].upstreamDecLoop = qpg_DTC_multipleLoop(upstrDetectors[idxApproach], laneDet);
 		loopDetectorData[i].lane = laneDet; 
@@ -187,7 +275,7 @@ void qpx_NET_postOpen(void)
 	appr 0	0	1	1	2	2	3	3
 	*/
 
-	// COP instance(s) here
+	/********		 COP instance(s)		******/
 
 	instances.push_back(COP97A::Cop97A(2, 70));  //empty with initial phase and horizon
 
@@ -206,22 +294,32 @@ void qpx_NET_postOpen(void)
 	instances[0].setLanePhases(1, 1);
 	instances[0].setLanePhases(2, 2);
 
+
+
 }
 
 
-// At draw time, highlight the selected object based on our selections.
-// NOTE that the User Picks checkbox should be set to on in the GUI.
+/* ---------------------------------------------------------------------
+* Include GUI elements
+* --------------------------------------------------------------------- */
 void qpx_DRW_modelView(void)
 {
 
 }
+
+/* ---------------------------------------------------------------------
+* time to arrival in mps
+* --------------------------------------------------------------------- */
 
 float getEstimatedArrivalTime (float time, float speed, int distance)
 {
 	return time + distance/speed; //sec + metres / metres/sec
 }
 
-//NOTE: Only for resolution 0.5s!
+
+/* ---------------------------------------------------------------------
+* Step adjustement for the horizon, only for 0.5s resolution
+* --------------------------------------------------------------------- */
 float adjustToStep(float num)
 {
 	float decimal = num - floor(num);
@@ -245,6 +343,9 @@ float adjustToStep(float num)
 	return floor(num);
 }
 
+/* ---------------------------------------------------------------------
+* determines current state of the prediction horizon for this arrival
+* --------------------------------------------------------------------- */
 float getHorizonStep(ARRIVALDATA arrival, float simulationTime)
 {
 	float elapsedTime = simulationTime - arrival.detectionTime;
@@ -253,17 +354,23 @@ float getHorizonStep(ARRIVALDATA arrival, float simulationTime)
 	return adjustToStep(timeToStopline); // floor, .5 or ceiling
 }
 
+/* ---------------------------------------------------------------------
+* Initialise the horizon to zero
+* --------------------------------------------------------------------- */
 void clearHorizon()
 {
 	for (int h=0; h< HORIZON_SIZE; h++)
 	{
 		for (int p= 0; p <PHASE_COUNT; p++)	
 		{
-			arrivalsHorizon[h][p]= 0; //Init all to zero
+			arrivalsHorizon[h][p]= 0; 
 		}
-	}
+	}	
 }
 
+/* ---------------------------------------------------------------------
+* include in the horizon or remove them from the detection data
+* --------------------------------------------------------------------- */
 void updateHorizon( float simulationTime)
 {
 	clearHorizon();
@@ -293,11 +400,17 @@ void updateHorizon( float simulationTime)
 	}
 }
 
+/* ---------------------------------------------------------------------
+* Use upstream and stopline detector data to estimate queue lengths
+* --------------------------------------------------------------------- */
 void estimateQueues(float currentTime)
 {
 	//TODO: using diff btwn num. of expected arrival and actually departed vehicles...
 }
 
+/* ---------------------------------------------------------------------
+* print current horizon to file
+* --------------------------------------------------------------------- */
 void printVectorToFile()
 {
 	ofstream myfile;
@@ -315,10 +428,14 @@ void printVectorToFile()
 	myfile.close();
 }
 
+/* ---------------------------------------------------------------------
+* determine phase (A or B) for vehicle using a detector 
+* --------------------------------------------------------------------- */
+
 int getPhase(int detectorIndex)
 {
 	//a uniformly distributed random value
-	// TODO: Use better distribution like this
+	// TODO: Use better distribution e.g
 
 	/*std::linear_congruential<int, 16807, 0, (int)((1U << 31) - 1)> eng;
 	eng.seed(eng);
@@ -326,28 +443,23 @@ int getPhase(int detectorIndex)
 	double udr = unif(eng);*/
 
 	double udr = ((double) rand() / (RAND_MAX+1));
+	int phase = udr > leftTurnProportion ? 0 : 1; //A=0;  B = 1; C=2,
 
-	int pphase = udr > leftTurnProportion ? 0 : 1; //A=0;  B = 1; C=2,
-	// rnd number from zero to ten 
-	int p;
-	switch (detectorIndex)
-	{
-	case 0: p = 2; break; //A
-	case 1: p = 2; break; //A
-	case 2: p = pphase; break; //B or C
-	case 3: p = pphase; break; //B or C
-	case 4: p = 2; break; //A
-	case 5: p = 2; break; //A
-	case 6: p = pphase; break; //B or C
-	case 7: p = pphase; break; //B or C
-	}
+	/*	A {1, 2, 4, 5} B or C {2, 3, 6, 7}	*/	
+
+	if (detectorIndex < 2 || (detectorIndex > 3 && detectorIndex < 6)) // A
+		phase = 2;
 
 	/*
 	loop 0	1	2	3	4	5	6	7	
 	appr 0	0	1	1	2	2	3	3
 	*/
-	return p;
+	return phase;
 }
+
+/* ---------------------------------------------------------------------
+* Locate next control
+* --------------------------------------------------------------------- */
 
 void getNextControl()
 {
@@ -360,10 +472,31 @@ void getNextControl()
 		double ttaken = (double)(clock() - tStart)/CLOCKS_PER_SEC;
 		qps_GUI_printf("COP: etime %.2fs : C %i : A%i : B%i ",ttaken , controlSequence[0], controlSequence[1], controlSequence[2]);
 	}
+}
+
+void setPhase(int ph)
+{
+
+	for (unsigned int i = 0; i < MOVEMENT_COUNT; i++)
+	{
+		/* call qps_LNK_priority(..) with the inbound link, outbound link
+		* and the priority value to use */
+
+		char inlnk[10];
+		strcpy_s(inlnk, phasing[ph][i].inlink.c_str());
+		char outlnk[10];
+		strcpy_s(outlnk, phasing[ph][i].outlink.c_str());
+
+		qps_LNK_priority(qpg_NET_link(inlnk),qpg_NET_link(outlnk),
+			phasing[ph][i].priority);
+	}     
 
 }
 
-//NOTE: use default timestep = 0.5s i.e. evaluate this blocks 2 times per second
+
+/* ---------------------------------------------------------------------
+* every simulated step, works best at 0.5s resolution
+* --------------------------------------------------------------------- */
 void qpx_NET_timeStep()
 {
 	float step = qpg_CFG_timeStep();
@@ -392,8 +525,11 @@ void qpx_NET_timeStep()
 	}
 
 	updateHorizon(currentTime);
-	estimateQueues(currentTime); 	//TODO: Unimplemented
+	estimateQueues(currentTime);
 
+	setPhase(0);
+
+	/*	manage optimisation thread 	*/
 	if(!isThreadRunning)
 	{	
 		if(hThread != NULL)

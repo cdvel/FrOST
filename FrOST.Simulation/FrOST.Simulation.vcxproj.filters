@@ -16,32 +16,15 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="ReadMe.txt" />
+    <None Include="phasing.txt">
+      <Filter>Resource Files</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="QPPrediction.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="QPController.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="QPStates.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-  </ItemGroup>
-  <ItemGroup>
-    <ClCompile Include="FrOST.Simulation.cpp">
+    <ClCompile Include="QPBasicController.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="QPPrediction.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="QPController.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="QPSimulation.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="Sim-bkp.cpp">
+    <ClCompile Include="QPControllerBKP.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
