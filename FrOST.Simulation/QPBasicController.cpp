@@ -39,6 +39,7 @@ using namespace std;
 #define		INITIAL_PHASE_INDEX 2   
 #define		NUM_LANES 2
 #define		MIN_GREEN 2
+#define		ALL_RED 2
 #define		MAX_GREEN 55
 #define		HORIZON_SIZE 70      
 #define		UPSTREAM_DETECTOR_DISTANCE 700       /* metres */
@@ -74,6 +75,13 @@ struct SIGPRI_s
 	int	  priority;    
 };
 
+typedef struct CONTROLDATA_s    CONTROLDATA;
+struct CONTROLDATA_s
+{
+	int phase;
+	float duration;
+};
+
 /* -------- network elements --------- */
 
 static char*	junctionNode =     "5";   //node to control
@@ -84,7 +92,7 @@ static DETECTOR* stoplDetectors[4];
 
 /* -------- phasing and prediction --------- */
 
-const char	phases [3] = {'A', 'B', 'C'}; /* A = WE - SE ; B = WN - ES (protected left turn) ; C = NS - SN */
+const char*	phases [3] = {"A", "B", "C"}; /* A = WE - SE ; B = WN - ES (protected left turn) ; C = NS - SN */
 std::vector<ARRIVALDATA> detectedArrivals;
 std::vector<std::vector<SIGPRI> > phasing;
 std::vector<std::vector<int> > arrivalsHorizon;
@@ -97,42 +105,68 @@ const char * phasing_file = "c:\\temp\\phasing.txt";
 
 vector<COP97A::Cop97A> instances;
 vector<int> control;
+vector<CONTROLDATA> controlSeq;
 
 HANDLE hThread = NULL;
 unsigned threadID;
 bool  isThreadRunning = false;
-bool  closeHandle = false;
+bool isSequenceReady = false;
+bool  isFirstTime = true;
+
+float lastControlTime = 0.0;
+int nextPhase = INITIAL_PHASE_INDEX;
+int nextControl = 0;
+int currentControl = 0;
+int seqIndex = 0;
 
 
-/* ---------------------------------------------------------------------
-* Thread function runs algorithm and updates optimal control sequence
+/* -----------------------------------------------------------------------
+* Runs algorithm on a separate thread and updates control sequence
 * --------------------------------------------------------------------- */
 
 unsigned __stdcall COPThreadFunc( void* data )
 {
+	isThreadRunning = true;
+	//isSequenceReady = false;
+	
 	clock_t tStart = clock();
+	instances[0].setArrivals(arrivalsHorizon);	/*	set to latest horizon */
 	control = instances[0].RunCOP();
+
 	double ttaken = (double)(clock() - tStart)/CLOCKS_PER_SEC;
-	//Sleep( 5000L - ttaken ); // to run COP at a predetermined frequency, add milliseconds to ttaken and sleep, e.g, 5 secs
+	//Sleep( 5000L - ttaken ); /* to run it at a predetermined frequency, add milliseconds to ttaken and sleep, e.g, 5 secs */
 
 	// Print sequence to console
 	string str;
 	std::stringstream message;
-	int cPhase = INITIAL_PHASE_INDEX;
+	int cPhase = nextPhase;
+	controlSeq.clear();			// TODO: Check for memory reallocation
+	controlSeq.reserve(9);		// TODO: find 9
 
 	for (vector<int>::iterator i = control.begin(); i != control.end(); ++i)
 	{
-		message << phases[cPhase] << ":" << *i << "\t";
-		cPhase = (cPhase == 2) ? 0: cPhase+1;			//updatePhase
+		int dur = *i;
+		if (dur > 0)				/*	skip phase	*/
+		{
+			CONTROLDATA ctrl;
+			ctrl.phase = cPhase;		
+			ctrl.duration = dur;
+			//controlSeq.push_back(ctrl);
+			controlSeq.insert(controlSeq.begin(),ctrl);
+
+		}
+
+		message << phases[cPhase] << ":" << dur << "\t";
+		cPhase = (cPhase == 2) ? 0: cPhase+1;				/* update phase	*/
 	}
 
 	float hh = qpg_CFG_simulationTime();
-	float mm =  fmod(hh, 60);
+	float mm =  fmod(hh, 60); 
 	hh = hh / 60;
-
-	qps_GUI_printf("\a %im %4.2fs \t%4.2fs \t %s ",(int)hh ,mm, ttaken, message.str().c_str());
+	qps_GUI_printf("\a COP: %im %4.2fs \t%4.2fs \t %s ",(int)hh ,mm, ttaken, message.str().c_str());
 
 	isThreadRunning = false;
+	isSequenceReady = controlSeq.size() > 0;
 	_endthreadex( 0 );
 	return 0;
 } 
@@ -149,7 +183,6 @@ std::vector<std::string> &split(const std::string &s, char delim, std::vector<st
 	}
 	return elems;
 }
-
 
 std::vector<std::string> split(const std::string &s, char delim) {
 	std::vector<std::string> elems;
@@ -460,7 +493,6 @@ int getPhase(int detectorIndex)
 /* ---------------------------------------------------------------------
 * Locate next control
 * --------------------------------------------------------------------- */
-
 void getNextControl()
 {
 	clock_t tStart = clock();
@@ -474,25 +506,40 @@ void getNextControl()
 	}
 }
 
-void setPhase(int ph)
+/* ---------------------------------------------------------------------
+* sets a phase in the controller
+* --------------------------------------------------------------------- */
+void setController(int ph, int pri)
 {
-
+	int priority;
+	
 	for (unsigned int i = 0; i < MOVEMENT_COUNT; i++)
 	{
-		/* call qps_LNK_priority(..) with the inbound link, outbound link
-		* and the priority value to use */
-
 		char inlnk[10];
-		strcpy_s(inlnk, phasing[ph][i].inlink.c_str());
 		char outlnk[10];
+		strcpy_s(inlnk,  phasing[ph][i].inlink.c_str());
 		strcpy_s(outlnk, phasing[ph][i].outlink.c_str());
 
-		qps_LNK_priority(qpg_NET_link(inlnk),qpg_NET_link(outlnk),
-			phasing[ph][i].priority);
-	}     
+		if (pri == APIPRI_BARRED)
+			priority = pri;
+		else
+			priority = phasing[ph][i].priority;
 
+		qps_LNK_priority(qpg_NET_link(inlnk), qpg_NET_link(outlnk), priority);
+	}     
 }
 
+void setControllerAllRed()
+{
+	setController(0, APIPRI_BARRED);
+	qps_GUI_printf("Controller set to ALL-RED for %i", ALL_RED); 
+}
+
+void setControllerNext(int ph)
+{
+	setController(ph, APIPRI_MAJOR);
+	qps_GUI_printf("Controller set to %s for %is", phases[ph], currentControl); 
+}
 
 /* ---------------------------------------------------------------------
 * every simulated step, works best at 0.5s resolution
@@ -500,8 +547,6 @@ void setPhase(int ph)
 void qpx_NET_timeStep()
 {
 	float step = qpg_CFG_timeStep();
-	//2 evaluations (every simulated second)
-
 	float currentTime = qpg_CFG_simulationTime();
 
 	for(int i=0; i < 8 ; i ++) // check all upstr loop Detectors 2 x approach
@@ -511,14 +556,11 @@ void qpx_NET_timeStep()
 
 		if (currentCount != loopDetectorData[i].lastCount) // add new vehicles detected
 		{
-			float speed = qpg_DTL_speed(theLoop, APILOOP_COMPLETE);
-
 			ARRIVALDATA dta;
-			dta.arrivalTime = getEstimatedArrivalTime(currentTime, speed, UPSTREAM_DETECTOR_DISTANCE);
+			dta.speed = qpg_DTL_speed(theLoop, APILOOP_COMPLETE);
+			dta.arrivalTime = getEstimatedArrivalTime(currentTime, dta.speed, UPSTREAM_DETECTOR_DISTANCE);
 			dta.detectionTime = currentTime;
-			dta.speed = speed;
 			dta.phase = getPhase(i);
-
 			detectedArrivals.push_back(dta);
 			loopDetectorData[i].lastCount = currentCount;
 		}
@@ -527,21 +569,57 @@ void qpx_NET_timeStep()
 	updateHorizon(currentTime);
 	estimateQueues(currentTime);
 
-	setPhase(0);
-
-	/*	manage optimisation thread 	*/
-	if(!isThreadRunning)
+	if(!isThreadRunning)		/*	manage algorithm thread 	*/
 	{	
 		if(hThread != NULL)
-			CloseHandle (hThread);	
+			CloseHandle (hThread);	/*  close finished thread	*/
 
-		isThreadRunning = true;
-		instances[0].setArrivals(arrivalsHorizon);
-		hThread = (HANDLE)_beginthreadex( NULL, 0, &COPThreadFunc, NULL, 0, &threadID);
+		hThread = (HANDLE)_beginthreadex( NULL, 0, &COPThreadFunc, NULL, 0, &threadID);		/* init new thread */
 	}
+	
+	//float timeToRed = lastControlTime + nextControl;		/*	switch points */
+	//float timeToNext = timeToRed + ALL_RED;
+
+	/*currentTime 
+	lastControlTime
+	currentControl
+	nextControl
+*/
+	
+	float timeToNext = lastControlTime + currentControl;
+	//qps_GUI_printf("\a %4.2f : current %i to next %4.2f  ", currentTime, currentControl, timeToNext);
+	
+	/*	
+		if (timeToRed == currentTime)
+		{	
+			setControllerAllRed();
+		}
+	*/
+
+	if (isSequenceReady)
+	{
+		if (isFirstTime)
+		{
+			timeToNext = currentTime;
+			isFirstTime =false;
+		}
+
+		if (timeToNext == currentTime)
+		{
+			CONTROLDATA nxt = controlSeq.back();
+			controlSeq.pop_back();
+			currentControl = (int)nxt.duration;
+			setControllerNext(nxt.phase);
+			lastControlTime = currentTime;
+			nextPhase = (nxt.phase == 2) ? 0: nxt.phase+1;		/*	prepare next phase	*/
+		}
+	}
+	
 }
 
-
+/* ---------------------------------------------------------------------
+* mouse and keyboard events
+* --------------------------------------------------------------------- */
 void qpx_GUI_keyPress(int key, int ctrl, int shift, int left, int middle, int right)
 {
 	// print to file when middle mouse has been clicked
