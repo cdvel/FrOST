@@ -38,10 +38,11 @@ using namespace std;
 #define 	MOVEMENT_COUNT 10       /* the number of phases */
 #define		INITIAL_PHASE_INDEX 2   
 #define		NUM_LANES 2
-#define		MIN_GREEN 2
+#define		MIN_GREEN 5
+#define		MAX_GREEN 50
 #define		ALL_RED 2
-#define		MAX_GREEN 55
-#define		HORIZON_SIZE 70      
+#define		HORIZON_SIZE 70
+#define		MAX_SEQUENCE 7
 #define		UPSTREAM_DETECTOR_DISTANCE 700       /* metres */
 
 /* -------- data structures --------- */
@@ -79,7 +80,7 @@ typedef struct CONTROLDATA_s    CONTROLDATA;
 struct CONTROLDATA_s
 {
 	int phase;
-	float duration;
+	int duration;
 };
 
 /* -------- network elements --------- */
@@ -106,12 +107,14 @@ const char * phasing_file = "c:\\temp\\phasing.txt";
 vector<COP97A::Cop97A> instances;
 vector<int> control;
 vector<CONTROLDATA> controlSeq;
+vector<CONTROLDATA> tempSeq;
 
 HANDLE hThread = NULL;
 unsigned threadID;
 bool  isThreadRunning = false;
 bool isSequenceReady = false;
 bool  isFirstTime = true;
+bool isAllRed = false;
 
 float lastControlTime = 0.0;
 int nextPhase = INITIAL_PHASE_INDEX;
@@ -127,21 +130,20 @@ int seqIndex = 0;
 unsigned __stdcall COPThreadFunc( void* data )
 {
 	isThreadRunning = true;
-	//isSequenceReady = false;
-	
+	if (!isAllRed){
+
 	clock_t tStart = clock();
 	instances[0].setArrivals(arrivalsHorizon);	/*	set to latest horizon */
 	control = instances[0].RunCOP();
-
+	/* to run it at a predetermined frequency, add milliseconds to ttaken and sleep, e.g, 5 secs */
+	//Sleep( 5000L - ttaken ); 
 	double ttaken = (double)(clock() - tStart)/CLOCKS_PER_SEC;
-	//Sleep( 5000L - ttaken ); /* to run it at a predetermined frequency, add milliseconds to ttaken and sleep, e.g, 5 secs */
-
-	// Print sequence to console
+	
 	string str;
 	std::stringstream message;
 	int cPhase = nextPhase;
-	controlSeq.clear();			// TODO: Check for memory reallocation
-	controlSeq.reserve(9);		// TODO: find 9
+	tempSeq.clear();			// TODO: Check for memory reallocation
+	tempSeq.reserve(9);		// TODO: find 9
 
 	for (vector<int>::iterator i = control.begin(); i != control.end(); ++i)
 	{
@@ -151,9 +153,7 @@ unsigned __stdcall COPThreadFunc( void* data )
 			CONTROLDATA ctrl;
 			ctrl.phase = cPhase;		
 			ctrl.duration = dur;
-			//controlSeq.push_back(ctrl);
-			controlSeq.insert(controlSeq.begin(),ctrl);
-
+			tempSeq.insert(tempSeq.begin(),ctrl);
 		}
 
 		message << phases[cPhase] << ":" << dur << "\t";
@@ -164,10 +164,9 @@ unsigned __stdcall COPThreadFunc( void* data )
 	float mm =  fmod(hh, 60); 
 	hh = hh / 60;
 	qps_GUI_printf("\a COP: %im %4.2fs \t%4.2fs \t %s ",(int)hh ,mm, ttaken, message.str().c_str());
-
+	}
 	isThreadRunning = false;
-	isSequenceReady = controlSeq.size() > 0;
-	_endthreadex( 0 );
+	isSequenceReady = tempSeq.size() > 0;
 	return 0;
 } 
 
@@ -312,12 +311,13 @@ void qpx_NET_postOpen(void)
 
 	instances.push_back(COP97A::Cop97A(2, 70));  //empty with initial phase and horizon
 
-	instances[0].setMaxPhCompute(10);
+	instances[0].setMaxPhCompute(MAX_SEQUENCE);
 	instances[0].setOutput(false);
 	//instances[0].setInitialPhase(2);
 	instances[0].setStartupLostTime(2.0);
-	instances[0].setMinGreenTime(5);
-	instances[0].setRedTime(3);
+	instances[0].setMinGreenTime(MIN_GREEN);
+	instances[0].setMaxGreenTime(MAX_GREEN);
+	instances[0].setRedTime(ALL_RED);
 
 	instances[0].setSaturationFlow(0, 1800); //in vehicles-per-hour per-lane 
 	instances[0].setSaturationFlow(1, 1400);
@@ -326,8 +326,6 @@ void qpx_NET_postOpen(void)
 	instances[0].setLanePhases(0, 1); //no. of lanes for each phase, used for saturation flow
 	instances[0].setLanePhases(1, 1);
 	instances[0].setLanePhases(2, 2);
-
-
 
 }
 
@@ -532,13 +530,13 @@ void setController(int ph, int pri)
 void setControllerAllRed()
 {
 	setController(0, APIPRI_BARRED);
-	qps_GUI_printf("Controller set to ALL-RED for %i", ALL_RED); 
+	qps_GUI_printf("--------->Controller set to RED for %is", ALL_RED); 
 }
 
 void setControllerNext(int ph)
 {
 	setController(ph, APIPRI_MAJOR);
-	qps_GUI_printf("Controller set to %s for %is", phases[ph], currentControl); 
+	qps_GUI_printf("------------->Controller set to %s for %is", phases[ph], currentControl); 
 }
 
 /* ---------------------------------------------------------------------
@@ -573,45 +571,49 @@ void qpx_NET_timeStep()
 	{	
 		if(hThread != NULL)
 			CloseHandle (hThread);	/*  close finished thread	*/
-
-		hThread = (HANDLE)_beginthreadex( NULL, 0, &COPThreadFunc, NULL, 0, &threadID);		/* init new thread */
+		if (!isAllRed)
+			hThread = (HANDLE)_beginthreadex( NULL, 0, &COPThreadFunc, NULL, 0, &threadID);		/* init new thread */
 	}
 	
-	//float timeToRed = lastControlTime + nextControl;		/*	switch points */
-	//float timeToNext = timeToRed + ALL_RED;
-
-	/*currentTime 
-	lastControlTime
-	currentControl
-	nextControl
-*/
-	
-	float timeToNext = lastControlTime + currentControl;
-	//qps_GUI_printf("\a %4.2f : current %i to next %4.2f  ", currentTime, currentControl, timeToNext);
-	
-	/*	
-		if (timeToRed == currentTime)
-		{	
-			setControllerAllRed();
-		}
-	*/
+	float timeToRed = lastControlTime + currentControl; /*	switch points */
+	float timeToNext = timeToRed + ALL_RED;
 
 	if (isSequenceReady)
 	{
+		if (!isAllRed)
+		{
+			std::vector<CONTROLDATA> _new (tempSeq);
+			controlSeq.clear();
+			controlSeq.reserve(_new.size());
+			controlSeq.swap(_new);
+			//copy(tempSeq.begin(),tempSeq.end(),back_inserter(controlSeq));
+
+			//controlSeq.reserve(tempSeq.size());
+			//controlSeq.swap(tempSeq);			/* discard sequences between allred and nextphase*/	
+		}
+
 		if (isFirstTime)
 		{
 			timeToNext = currentTime;
 			isFirstTime =false;
+			isAllRed = false;
+		}
+
+		if (timeToRed == currentTime)
+		{
+			setControllerAllRed();
+			isAllRed = true;
 		}
 
 		if (timeToNext == currentTime)
 		{
 			CONTROLDATA nxt = controlSeq.back();
 			controlSeq.pop_back();
-			currentControl = (int)nxt.duration;
+			currentControl = nxt.duration;
 			setControllerNext(nxt.phase);
 			lastControlTime = currentTime;
 			nextPhase = (nxt.phase == 2) ? 0: nxt.phase+1;		/*	prepare next phase	*/
+			isAllRed = false;
 		}
 	}
 	
@@ -622,9 +624,7 @@ void qpx_NET_timeStep()
 * --------------------------------------------------------------------- */
 void qpx_GUI_keyPress(int key, int ctrl, int shift, int left, int middle, int right)
 {
-	// print to file when middle mouse has been clicked
-
-	if(key == 0x33 && middle) // 3 key + mid click
+	if(key == 0x33 && middle) /* print to file on 3 key + mid click */
 	{
 		printVectorToFile();
 		qps_GUI_printf("********* PRINTED ************");
