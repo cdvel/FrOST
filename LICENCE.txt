@@ -5,7 +5,11 @@ in the Software without restriction, including without limitation the rights to 
 copies of the Software, and to permit persons to whom the Software is
 furnished to do so, subject to the following conditions:
 
-Implementation of external algorithms and external APIs usage should be subject to the original authors permission and acknowledged accordingly.
+Explicit permission from the authors has been requested.
+
+Implementation of external algorithms and external APIs usage should be subject to the original authors permission and honoured accordingly.
+
+Proper public acknowledgement and/or citation should be given to all corresponding parties. 
 
 The above copyright notice and this permission notice shall be included in
 all copies or substantial portions of the Software.

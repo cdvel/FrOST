@@ -130,40 +130,40 @@ int seqIndex = 0;
 unsigned __stdcall COPThreadFunc( void* data )
 {
 	isThreadRunning = true;
-	if (!isAllRed){
+
 
 	clock_t tStart = clock();
 	instances[0].setArrivals(arrivalsHorizon);	/*	set to latest horizon */
 	control = instances[0].RunCOP();
-	/* to run it at a predetermined frequency, add milliseconds to ttaken and sleep, e.g, 5 secs */
-	//Sleep( 5000L - ttaken ); 
+	/* to run it at a predetermined frequency, add ms to ttaken and sleep, e.g, Sleep( 5000L - ttaken ); */
 	double ttaken = (double)(clock() - tStart)/CLOCKS_PER_SEC;
-	
-	string str;
-	std::stringstream message;
-	int cPhase = nextPhase;
-	tempSeq.clear();			// TODO: Check for memory reallocation
-	tempSeq.reserve(9);		// TODO: find 9
+	if (!isAllRed)
+	{				/* late check to avoid algorithm latency issues */
+		string str;
+		std::stringstream message;
+		int cPhase = nextPhase;
+		tempSeq.clear();			
+		tempSeq.reserve(MAX_SEQUENCE+1);		// TODO: check it
 
-	for (vector<int>::iterator i = control.begin(); i != control.end(); ++i)
-	{
-		int dur = *i;
-		if (dur > 0)				/*	skip phase	*/
+		for (vector<int>::iterator i = control.begin(); i != control.end(); ++i)
 		{
-			CONTROLDATA ctrl;
-			ctrl.phase = cPhase;		
-			ctrl.duration = dur;
-			tempSeq.insert(tempSeq.begin(),ctrl);
+			int dur = *i;
+			if (dur > 0)				/*	skip phase	*/
+			{
+				CONTROLDATA ctrl;
+				ctrl.phase = cPhase;		
+				ctrl.duration = dur;
+				tempSeq.insert(tempSeq.begin(),ctrl);
+			}
+
+			message << phases[cPhase] << ":" << dur << "\t";
+			cPhase = (cPhase == 2) ? 0: cPhase+1;				/* update phase	*/
 		}
 
-		message << phases[cPhase] << ":" << dur << "\t";
-		cPhase = (cPhase == 2) ? 0: cPhase+1;				/* update phase	*/
-	}
-
-	float hh = qpg_CFG_simulationTime();
-	float mm =  fmod(hh, 60); 
-	hh = hh / 60;
-	qps_GUI_printf("\a COP: %im %4.2fs \t%4.2fs \t %s ",(int)hh ,mm, ttaken, message.str().c_str());
+		float hh = qpg_CFG_simulationTime();
+		float mm =  fmod(hh, 60); 
+		hh = hh / 60;
+		qps_GUI_printf("\a COP: %im %4.2fs \t%4.2fs \t %s ",(int)hh ,mm, ttaken, message.str().c_str());
 	}
 	isThreadRunning = false;
 	isSequenceReady = tempSeq.size() > 0;
@@ -212,7 +212,6 @@ void loadPhasingFile(void)
 	int iPhase = 0;
 	int iMov = 0;
 
-
 	if (myfile.is_open())
 	{
 		while ( getline (myfile,line) )
@@ -244,7 +243,6 @@ void loadPhasingFile(void)
 
 void qpx_NET_postOpen(void)
 {
-
 	jNode = qpg_NET_node(junctionNode);
 	qps_NDE_externalController(jNode,PTRUE);
 
@@ -300,12 +298,11 @@ void qpx_NET_postOpen(void)
 		}
 
 		idxApproach = idxApproach + i%2; // +1 every 2 cycles
+		/*
+			loop 0	1	2	3	4	5	6	7	
+			appr 0	0	1	1	2	2	3	3
+		*/
 	}
-
-	/*
-	loop 0	1	2	3	4	5	6	7	
-	appr 0	0	1	1	2	2	3	3
-	*/
 
 	/********		 COP instance(s)		******/
 
@@ -335,7 +332,7 @@ void qpx_NET_postOpen(void)
 * --------------------------------------------------------------------- */
 void qpx_DRW_modelView(void)
 {
-
+	//TODO: Implement
 }
 
 /* ---------------------------------------------------------------------
@@ -417,7 +414,7 @@ void updateHorizon( float simulationTime)
 		else	// if vehicle still in the link, add it to the current horizon
 		{
 			float arrivalTimeStep  = getHorizonStep(detectedArrivals[i], simulationTime);
-			int horizonTime= (int)(arrivalTimeStep * 2); //multiples of 0.5
+			int horizonTime= (int)(arrivalTimeStep * 2); 
 			/*
 			0 0.5 1 1.5 2 2.5 ... 34
 			0  1  2  3  4  5 ... 69
@@ -465,19 +462,21 @@ void printVectorToFile()
 
 int getPhase(int detectorIndex)
 {
-	//a uniformly distributed random value
-	// TODO: Use better distribution e.g
+	
+	/* TODO: Use better distribution e.g
+	 *
+	 * std::linear_congruential<int, 16807, 0, (int)((1U << 31) - 1)> eng;
+	 * eng.seed(eng);
+	 * std::tr1::uniform_real<double> unif(0, 1);
+	 * double udr = unif(eng);
+	 * OR
+	 * int qpg_UTL_randomNormalInteger(int stream, int mean, int std_dev); 
+	 */
 
-	/*std::linear_congruential<int, 16807, 0, (int)((1U << 31) - 1)> eng;
-	eng.seed(eng);
-	std::tr1::uniform_real<double> unif(0, 1);
-	double udr = unif(eng);*/
-
-	double udr = ((double) rand() / (RAND_MAX+1));
+	double udr = ((double) rand() / (RAND_MAX+1));		/*	a uniformly distributed random value	*/
 	int phase = udr > leftTurnProportion ? 0 : 1; //A=0;  B = 1; C=2,
 
 	/*	A {1, 2, 4, 5} B or C {2, 3, 6, 7}	*/	
-
 	if (detectorIndex < 2 || (detectorIndex > 3 && detectorIndex < 6)) // A
 		phase = 2;
 
@@ -488,21 +487,6 @@ int getPhase(int detectorIndex)
 	return phase;
 }
 
-/* ---------------------------------------------------------------------
-* Locate next control
-* --------------------------------------------------------------------- */
-void getNextControl()
-{
-	clock_t tStart = clock();
-	// /* Do your stuff here */
-	instances[0].setArrivals(arrivalsHorizon);
-	vector<int> controlSequence = instances[0].RunCOP();
-	if (controlSequence.size() >2)
-	{
-		double ttaken = (double)(clock() - tStart)/CLOCKS_PER_SEC;
-		qps_GUI_printf("COP: etime %.2fs : C %i : A%i : B%i ",ttaken , controlSequence[0], controlSequence[1], controlSequence[2]);
-	}
-}
 
 /* ---------------------------------------------------------------------
 * sets a phase in the controller
@@ -510,7 +494,7 @@ void getNextControl()
 void setController(int ph, int pri)
 {
 	int priority;
-	
+
 	for (unsigned int i = 0; i < MOVEMENT_COUNT; i++)
 	{
 		char inlnk[10];
@@ -536,7 +520,7 @@ void setControllerAllRed()
 void setControllerNext(int ph)
 {
 	setController(ph, APIPRI_MAJOR);
-	qps_GUI_printf("------------->Controller set to %s for %is", phases[ph], currentControl); 
+	qps_GUI_printf("------------->Controller set to [%s] for %is", phases[ph], currentControl); 
 }
 
 /* ---------------------------------------------------------------------
@@ -547,12 +531,12 @@ void qpx_NET_timeStep()
 	float step = qpg_CFG_timeStep();
 	float currentTime = qpg_CFG_simulationTime();
 
-	for(int i=0; i < 8 ; i ++) // check all upstr loop Detectors 2 x approach
+	for(int i=0; i < 8 ; i ++) 	/* check all upstream loop detectors; two per approach	*/
 	{
 		LOOP* theLoop = loopDetectorData[i].upstreamDecLoop;
-		int currentCount = qpg_DTL_count(theLoop, 0); // zero to count all vehicle types
+		int currentCount = qpg_DTL_count(theLoop, 0); 		/*	zero to count all vehicle types	*/
 
-		if (currentCount != loopDetectorData[i].lastCount) // add new vehicles detected
+		if (currentCount != loopDetectorData[i].lastCount) 		/*	add new vehicles detectedArrivals	*/
 		{
 			ARRIVALDATA dta;
 			dta.speed = qpg_DTL_speed(theLoop, APILOOP_COMPLETE);
@@ -571,25 +555,25 @@ void qpx_NET_timeStep()
 	{	
 		if(hThread != NULL)
 			CloseHandle (hThread);	/*  close finished thread	*/
-		if (!isAllRed)
+
+		if (isAllRed)
+			hThread = new HANDLE();
+		else
 			hThread = (HANDLE)_beginthreadex( NULL, 0, &COPThreadFunc, NULL, 0, &threadID);		/* init new thread */
+			
 	}
-	
+
 	float timeToRed = lastControlTime + currentControl; /*	switch points */
 	float timeToNext = timeToRed + ALL_RED;
 
 	if (isSequenceReady)
 	{
-		if (!isAllRed)
+		if (!isAllRed)									/* discard sequences till next phase*/	
 		{
 			std::vector<CONTROLDATA> _new (tempSeq);
 			controlSeq.clear();
 			controlSeq.reserve(_new.size());
 			controlSeq.swap(_new);
-			//copy(tempSeq.begin(),tempSeq.end(),back_inserter(controlSeq));
-
-			//controlSeq.reserve(tempSeq.size());
-			//controlSeq.swap(tempSeq);			/* discard sequences between allred and nextphase*/	
 		}
 
 		if (isFirstTime)
@@ -607,16 +591,27 @@ void qpx_NET_timeStep()
 
 		if (timeToNext == currentTime)
 		{
-			CONTROLDATA nxt = controlSeq.back();
-			controlSeq.pop_back();
-			currentControl = nxt.duration;
-			setControllerNext(nxt.phase);
-			lastControlTime = currentTime;
-			nextPhase = (nxt.phase == 2) ? 0: nxt.phase+1;		/*	prepare next phase	*/
+			if(controlSeq.size() > 0)						/* at this point, control and temp seqs are the same */
+			{
+				CONTROLDATA nxt = controlSeq.back();
+				controlSeq.pop_back();
+				if (isAllRed)
+					tempSeq.pop_back();								
+				currentControl = nxt.duration;
+				setControllerNext(nxt.phase);
+				nextPhase = nxt.phase;
+			}
+			else
+			{
+				currentControl = MAX_GREEN;				/*	if no control seq, set max	green*/
+				setControllerNext(nextPhase);
+			}
+
 			isAllRed = false;
+			nextPhase = (nextPhase == 2) ? 0: nextPhase+1;		/*	prepare next phase	*/
+			lastControlTime = currentTime;
 		}
 	}
-	
 }
 
 /* ---------------------------------------------------------------------
