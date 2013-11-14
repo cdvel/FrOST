@@ -80,7 +80,7 @@ namespace COP97A {
 		float startupLostTime; //time from total halt to free-flow (2 secs)
 		unsigned int T; //planning horizon
 		unsigned int M; //maximum number of phases to compute
-		int initialPhase; // = 2;
+		int initialPhase; // = 2;								//-----------------> state rep
 		int idxCurrentPh; //= initialPhase; // set initial phase to C (2)
 		//float satHeadway; // avg headway between vehicles during saturated flow
 		//float satFlowRate; // = 0.0; No.Lanes / satHeadway
@@ -90,7 +90,7 @@ namespace COP97A {
 		char phaseSeq[3]; // A, B, C
 		std::vector<int> phases; // A = 0, B = 1, C = 2
 		std::vector<int> optControlSequence; // A = 0, B = 1, C = 2
-		std::vector< std::vector<int> > arrivalData;
+		std::vector< std::vector<int> > arrivalData; //---------------------> state rep
 		std::vector< std::vector<int> > v; //v_j(s_j);
 		std::vector< std::vector<int> > x_star; // optimal solutions x*_j(s_j)
 		std::vector<std::vector<std::vector<int> > > Q; // permanent queue lengths Q_{phi, j}(s_j)

@@ -84,9 +84,11 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="COP97A.h" />
+    <ClInclude Include="REAP1.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="COP97A.cpp" />
+    <ClCompile Include="REAP1.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
