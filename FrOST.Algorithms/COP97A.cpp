@@ -733,7 +733,6 @@ namespace COP97A{
 			idxSeq = idxSeq==0 ? 2:idxSeq - 1;
 		}
 		//cout << "]\n";
-
 		
 		cout << "\nOptimal Control Sequence: \n\n"; 
 		optControlSequence = printSequence(optimalControlSeq, jsize);

@@ -133,10 +133,7 @@ double rightTurnProportion = 0.1;
 const char * phasing_file = "c:\\temp\\phasing.txt";
 //const char * phasing_file = "phasing.txt";
 
-int currentQueues[3] = {0,0,0};	// in vehicles per phase, 8 detectors x 2 lanes = 16
-
-int expectedArrivals[3] = {0,0,0};
-int actuallyDeparted[3] = {0,0,0};
+int eQueueCount[3] = {0,0,0};	// in vehicles per phase
 
 /* ---------------------------------------------------------------------
  * controller
@@ -484,13 +481,37 @@ int lookupExpectedArrivals(int phaseIdx, int nEntries)
 	return exArrivals;
 }
 
+/* ---------------------------------------------------------------------
+* determine phase (A or B) for vehicle using a detector 
+* --------------------------------------------------------------------- */
 
-int calculateDeparturesbyPhase(int phaseIdx)
+int getPhaseByProbability(int detectorIndex)
 {
-	getPhaseByProbability(detectorIndex);
-	return 
-}
+	/* TODO: Use better distribution e.g
+	 *
+	 * std::linear_congruential<int, 16807, 0, (int)((1U << 31) - 1)> eng;
+	 * eng.seed(eng);
+	 * std::tr1::uniform_real<double> unif(0, 1);
+	 * double udr = unif(eng);
+	 * OR
+	 * int qpg_UTL_randomNormalInteger(int stream, int mean, int std_dev); 
+	 */
 
+	int phase = 2;
+
+	/*	A {1, 2, 4, 5} B or C {2, 3, 6, 7}	*/	
+	if (detectorIndex > 5 || (detectorIndex > 1 && detectorIndex < 4)) // B or C
+	{
+		double udr = ((double) rand() / (RAND_MAX+1));		/*	a uniformly distributed random value	*/
+		phase = udr > leftTurnProportion ? 0 : 1; //A=0;  B = 1; C=2,
+	}
+
+	/*
+	loop 0	1	2	3	4	5	6	7	
+	appr 0	0	1	1	2	2	3	3
+	*/
+	return phase;
+}
 
 /* ---------------------------------------------------------------------
 * Use upstream and stopline detector data to estimate queue lengths per phase
@@ -498,127 +519,33 @@ int calculateDeparturesbyPhase(int phaseIdx)
 
 void estimateQueues(float currentTime)
 {
-
-	//TODO: put cycles!!!
-
-	int currentCount = qpg_DTL_count(stopLineLoop, 0); 		/*	zero to count all vehicle types	*/
-
-	int departedCount = currentCount - loopUpDetectorData[i].lastCount; 		/*	actually departed	*/
-
-	int steps = 2;
-	int expectedArrivalsCount = lookupExpectedArrivals(iPhase, steps);
-	
-	//for case PHASE C
-
-	// do for A and using probability!
-
-
-
-	estimatedQueue = expectedArrivalsCount - departedCount;
-	
-
-	int arrivals [3] = {0,0,0}; // predicted no. of vehicles arriving at the stopline now
-	int departures[3] = {0,0,0};  // vehicles leaving the stopline now
-
-	int queues[3] = {0,0,0};
-
-	int upstreamCount[3] = {0,0,0};
+	eQueueCount[0]= 0;eQueueCount[1]= 0;eQueueCount[2]= 0;
 
 	for(int detectorIndex=0; detectorIndex < 8 ; detectorIndex++) 	/* check all loop detectors  (stopline); two per approach	*/
 	{
-		if (detectorIndex < 2 || (detectorIndex > 3 && detectorIndex < 6)) // North or Southbound
-		{
-			upstreamCount[2] += loopUpDetectorData[detectorIndex].lastCount - loopStDetectorData[detectorIndex].lastCount;
-			// all vehicles (approaching and stopped) in lanes of phase C
-			lookupExpectedArrivals(iPhase, 2);
-		}
+		LOOP* stoplineLoop = loopStDetectorData[detectorIndex].stopLineDecLoop;
+		int currentCount = qpg_DTL_count(stoplineLoop, 0); 		/*	zero to count all vehicle types	*/
+		int departedCount = currentCount - loopUpDetectorData[detectorIndex].lastCount; 		/*	actually departed	*/
+
+		//classify into phases here
+		int	iPhase = getPhaseByProbability(detectorIndex);
+		int steps = 2;
+		eQueueCount[iPhase] += loopUpDetectorData[detectorIndex].lastCount - currentCount;
+			//lookupExpectedArrivals(iPhase, steps) - departedCount;
+		loopStDetectorData[detectorIndex].lastCount = currentCount;
 	}
 
-
-	for (int iPhase=0; iPhase < PHASE_COUNT; iPhase++)
-	{
-
-		arrivals[iPhase] = lookupExpectedArrivals(iPhase, 2); // TODO: vary step based on queue lengths
-		//currentQueues = exArrivals - calculateDeparturesbyPhase(iPhase);
-	}
-
-
-	for(int detIdx=0; detIdx < 8 ; detIdx++) 	/* check all loop detectors  (stopline); two per approach	*/
-	{
-		if (detIdx < 2 || (detIdx > 3 && detIdx < 6)) // North or Southbound
-		{
-			queues[2] += loopUpDetectorData[detIdx].lastCount - loopStDetectorData[detIdx].lastCount;
-		}
-		
-
-		loopUpDetectorData[i].approach == 0 or loopUpDetectorData[i].approach ==2
-		naiveQueueCount.push_back();
-
-		if()
-
-		int difference = 
-		
-		loopStDetectorData[i].phase, loopStDetectorData[i].lastCount - ;
-	}
-
+	//qps_GUI_printf(">>> Expected arrivals: A[%i] B[%i] C[%i]", eQueueCount[0], eQueueCount[1], eQueueCount[2]); 
+	//qps_GUI_printf(">>> Departed count   : A[%i] B[%i] C[%i]", eQueueCount[0], eQueueCount[1], eQueueCount[2]); 
 	
-
-	//_________________________________
-
-	double udr = ((double) rand() / (RAND_MAX+1));		/*	a uniformly distributed random value	*/
-	int phase = udr > leftTurnProportion ? 0 : 1; //A=0;  B = 1; C=2,
-
-	/*	A {1, 2, 4, 5} B or C {2, 3, 6, 7}	*/	
-	if (detectorIndex < 2 || (detectorIndex > 3 && detectorIndex < 6)) // A
-		phase = 2;
-
-	/*
-	loop 0	1	2	3	4	5	6	7	
-	appr 0	0	1	1	2	2	3	3
-	*/
-	return phase;
-
-	//_____________________________________
-
-
-
-
-	count stopline arrivals 
-
-	count departures
-
-	substract them
-
-	group detectors per phase
-
-		for all detectors of phase 
-
-			can't do coz need probability
+	qps_GUI_printf(">>> on the way A[%i] B[%i] C[%i]", eQueueCount[0], eQueueCount[1], eQueueCount[2]); 
 	
-	difference in out vs expected
-
 	/*
 	the difference between the number of expected arrival vehicles and the actually departed vehicles at the stop line
-
 	expected arrival vehicles: from the arrivals Horizon (expected)
 	actually departed vehicles at stop line
-
 	*/
-	
-
 	//TODO: using diff btwn num. of expected arrival and actually departed vehicles... Xie 2012 pp 179
-	for(int i=0; i < 8 ; i ++) 	/* check all loop detectors  (stopline); two per approach	*/
-	{
-		queueLength[i] = loopUpDetectorData[i].lastCount - 
-		naiveQueueCount.push_back();
-
-		if()
-
-		int difference = 
-		
-		loopStDetectorData[i].phase, loopStDetectorData[i].lastCount - ;
-	}
-
 }
 
 /* ---------------------------------------------------------------------
@@ -642,35 +569,6 @@ void printVectorToFile()
 	myfile.close();
 }
 
-/* ---------------------------------------------------------------------
-* determine phase (A or B) for vehicle using a detector 
-* --------------------------------------------------------------------- */
-
-int getPhaseByProbability(int detectorIndex)
-{
-	/* TODO: Use better distribution e.g
-	 *
-	 * std::linear_congruential<int, 16807, 0, (int)((1U << 31) - 1)> eng;
-	 * eng.seed(eng);
-	 * std::tr1::uniform_real<double> unif(0, 1);
-	 * double udr = unif(eng);
-	 * OR
-	 * int qpg_UTL_randomNormalInteger(int stream, int mean, int std_dev); 
-	 */
-
-	double udr = ((double) rand() / (RAND_MAX+1));		/*	a uniformly distributed random value	*/
-	int phase = udr > leftTurnProportion ? 0 : 1; //A=0;  B = 1; C=2,
-
-	/*	A {1, 2, 4, 5} B or C {2, 3, 6, 7}	*/	
-	if (detectorIndex < 2 || (detectorIndex > 3 && detectorIndex < 6)) // A
-		phase = 2;
-
-	/*
-	loop 0	1	2	3	4	5	6	7	
-	appr 0	0	1	1	2	2	3	3
-	*/
-	return phase;
-}
 
 /* ---------------------------------------------------------------------
 * sets a phase in the controller
@@ -736,10 +634,10 @@ void qpx_NET_timeStep()
 			detectedArrivals.push_back(dta);
 			loopUpDetectorData[i].lastCount = currentCount;
 		}
-
-		LOOP* stoplineLoop = loopStDetectorData[i].stopLineDecLoop;
-		int currentStoplCount = qpg_DTL_count(stoplineLoop, 0); /*	update stopline count */
-		loopStDetectorData[i].lastCount = currentStoplCount;
+		// TODO: here???
+//		LOOP* stoplineLoop = loopStDetectorData[i].stopLineDecLoop;
+//		int currentStoplCount = qpg_DTL_count(stoplineLoop, 0); /*	update stopline count */
+//		loopStDetectorData[i].lastCount = currentStoplCount;
 	}
 
 	/* ---------------------------------------------------------------------
@@ -807,6 +705,8 @@ void qpx_NET_timeStep()
 			nextPhase = (nextPhase == 2) ? 0: nextPhase+1;		/*	prepare next phase	*/
 			lastControlTime = currentTime;
 		}
+	
+		
 	}
 }
 

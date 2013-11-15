@@ -332,10 +332,18 @@ namespace REAP1{
 
 	vector<int> ReAP1::RunREAP() {
 
+		std::vector<int> optControlSequence;
+
+		optControlSequence.push_back(55);
+		optControlSequence.push_back(55);
+		optControlSequence.push_back(55);
+		optControlSequence.push_back(55);
+		optControlSequence.push_back(55);
+
 		cout << "REAP started...\n";
-		selectNextAction();
-		updateState(NULL);
-		updateReward();
+		//selectNextAction();
+		//updateState(NULL);
+		//updateReward();
 
 		cout << "\nOptimal Control Sequence: \n\n"; 
 		cout << "\n\n...REAP ended\n\n";
