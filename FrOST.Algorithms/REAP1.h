@@ -16,6 +16,7 @@ namespace std {
 #include <string>
 #include <sstream>
 #include <iostream>
+#include <map>
 
 //using namespace System;
 
@@ -75,7 +76,7 @@ namespace REAP1 {
 
 		struct REAP1STATE_s	// i.e. a road section connected to the intersection
 		{	
-			std::vector<int> queueLenghts;		/*		per each intersection phase		*/
+			std::vector<int> queueLenghts;		/*		per phase		*/
 			int phaseIndex;
 			int greenRemaining;
 		};
@@ -85,11 +86,37 @@ namespace REAP1 {
 		ReAP1::REAP1STATE tState;
 		void ReAP1::updateState(REAP1STATE nState);
 
+		int nStates;		/*	(15000) queue length (capped) * phase * remaining (max green)  = 100(3-ph) * 3 * 50	*/
+		int nActions;		/*	(3) 0: extend current; 1: apply next phase; 2: skip next and apply 2nd next	*/
+
 		/* ---------------------------------------------------------------------
 		* Reward definition
 		* --------------------------------------------------------------------- */
 
 		int ReAP1::reward;
+
+		/* ---------------------------------------------------------------------
+		* Q structures
+		* --------------------------------------------------------------------- */
+
+		//std::map <REAP1STATE, double[]> Q;
+		//REAP1_API void initQ();
+
+		//struct cmpState {
+		//	bool operator()(const REAP1STATE& a, const REAP1STATE& b) const {
+		//		
+
+		//		a.phaseIndex == b.greenRemaining;
+		//		a.greenRemaining == b.greenRemaining;
+
+		//		return a.length() < b.length();
+		//	}
+		//};
+
+		//bool operator <(REAP1STATE const& lhs, REAP1STATE const& rhs)
+		//{	
+		//	return lhs
+		//}
 
 	private:
 

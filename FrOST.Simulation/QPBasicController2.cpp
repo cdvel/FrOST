@@ -134,7 +134,9 @@ const char * phasing_file = "c:\\temp\\phasing.txt";
 //const char * phasing_file = "phasing.txt";
 
 int eQueueCount[3] = {0,0,0};	// in vehicles per phase
-
+// queue = stoplinearrivals - actualdepartures
+int stoplineArrivals[3] = {0,0,0}; // total vehicles arriving at stop line 
+int currentPhaseIndex = 0;
 /* ---------------------------------------------------------------------
  * controller
  * --------------------------------------------------------------------- */
@@ -199,7 +201,7 @@ unsigned __stdcall COPThreadFunc( void* data )
 		float hh = qpg_CFG_simulationTime();
 		float mm =  fmod(hh, 60); 
 		hh = hh / 60;
-		qps_GUI_printf("\a REAP: %im %4.2fs \t%4.2fs \t %s ",(int)hh ,mm, ttaken, message.str().c_str());
+		//qps_GUI_printf("\a REAP: %im %4.2fs \t%4.2fs \t %s ",(int)hh ,mm, ttaken, message.str().c_str());
 	}
 	isThreadRunning = false;
 	isSequenceReady = tempSeq.size() > 0;
@@ -443,25 +445,34 @@ void updateHorizon( float simulationTime)
 	{
 		if (detectedArrivals[i].arrivalTime < simulationTime) // if estimated arrival has passed
 		{														
-			// difference between counts then is queueing!
+			
+			int iPhase = detectedArrivals[i].phase;
 			std::vector<ARRIVALDATA>::iterator it = detectedArrivals.begin();
 			std::advance(it, i);
 			detectedArrivals.erase(it);		// remove vehicle from the vector!
+			// difference between counts then is queueing!
+			stoplineArrivals[iPhase] += 1;		// NEW : EAT has elapsed, then add to stopline arrivals
 		}
 		else	// if vehicle still in the link, add it to the current horizon
 		{
-			float arrivalTimeStep  = getHorizonStep(detectedArrivals[i], simulationTime);
-			int horizonTime= (int)(arrivalTimeStep * 2); 
-			/*
-			0 0.5 1 1.5 2 2.5 ... 34
-			0  1  2  3  4  5 ... 69
-			*/
+				float arrivalTimeStep  = getHorizonStep(detectedArrivals[i], simulationTime);
+				int horizonTime= (int)(arrivalTimeStep * 2); 
+				/*
+				0 0.5 1 1.5 2 2.5 ... 34
+				0  1  2  3  4  5 ... 69
+				*/
 
-			if (horizonTime < HORIZON_SIZE) //70-s (0-69)
-			{
-				ARRIVALDATA detected = detectedArrivals[i];
-				arrivalsHorizon[horizonTime][detected.phase]+=1;
-			}
+				if (horizonTime < HORIZON_SIZE) //70-s (0-69)
+				{
+					ARRIVALDATA detected = detectedArrivals[i];
+					arrivalsHorizon[horizonTime][detected.phase]+=1;
+
+				//	if(horizonTime < 1)	//imminent arrivals; single point in time to avoid multiple count
+				//	{
+				//		qps_GUI_printf("+++ ARRIVAL by %i", detectedArrivals[i].phase);	// NEW add arrivals counter; tested OK
+				//		stoplineArrivals[detectedArrivals[i].phase] += 1;
+				//	}
+				}
 		}
 	}
 }
@@ -473,7 +484,7 @@ int lookupExpectedArrivals(int phaseIdx, int nEntries)
 {	
 	int exArrivals = 0;
 
-	for(int h=0; h < nEntries; h++)
+	for(int h=1; h < nEntries; h++)
 	{
 		exArrivals = arrivalsHorizon[nEntries][phaseIdx];
 	}
@@ -519,33 +530,58 @@ int getPhaseByProbability(int detectorIndex)
 
 void estimateQueues(float currentTime)
 {
-	eQueueCount[0]= 0;eQueueCount[1]= 0;eQueueCount[2]= 0;
-
+	//int exArrivals[3] = {0,0,0};
+	//eQueueCount[0]= 0;eQueueCount[1]= 0;eQueueCount[2]= 0;
+	int stopLineDepartures[3] = {0,0,0};
+ 
 	for(int detectorIndex=0; detectorIndex < 8 ; detectorIndex++) 	/* check all loop detectors  (stopline); two per approach	*/
 	{
 		LOOP* stoplineLoop = loopStDetectorData[detectorIndex].stopLineDecLoop;
-		int currentCount = qpg_DTL_count(stoplineLoop, 0); 		/*	zero to count all vehicle types	*/
-		int departedCount = currentCount - loopUpDetectorData[detectorIndex].lastCount; 		/*	actually departed	*/
+		int currentStopCount = qpg_DTL_count(stoplineLoop, 0); 		/*	zero to count all vehicle types	*/
 
-		//classify into phases here
-		int	iPhase = getPhaseByProbability(detectorIndex);
-		int steps = 2;
-		eQueueCount[iPhase] += loopUpDetectorData[detectorIndex].lastCount - currentCount;
-			//lookupExpectedArrivals(iPhase, steps) - departedCount;
-		loopStDetectorData[detectorIndex].lastCount = currentCount;
+		int	iPhase = getPhaseByProbability(detectorIndex);	// TODO: noisy function; find another solution
+		stopLineDepartures[iPhase] += currentStopCount;
+		loopStDetectorData[detectorIndex].lastCount = currentStopCount;
 	}
 
-	//qps_GUI_printf(">>> Expected arrivals: A[%i] B[%i] C[%i]", eQueueCount[0], eQueueCount[1], eQueueCount[2]); 
-	//qps_GUI_printf(">>> Departed count   : A[%i] B[%i] C[%i]", eQueueCount[0], eQueueCount[1], eQueueCount[2]); 
-	
-	qps_GUI_printf(">>> on the way A[%i] B[%i] C[%i]", eQueueCount[0], eQueueCount[1], eQueueCount[2]); 
+	int diff;											/* deal with error from turning probability */
+	if (stoplineArrivals[1] < stopLineDepartures[1])
+	{
+		diff = stopLineDepartures[1] - stoplineArrivals[1];
+		stoplineArrivals[0] -= diff;
+		stoplineArrivals[1] += diff;
+	}
+	else
+	{
+		if (stoplineArrivals[0] < stopLineDepartures[0])
+		{
+			diff = stopLineDepartures[0] - stoplineArrivals[0];
+			stoplineArrivals[1] -= diff;
+			stoplineArrivals[0] += diff;
+		}
+	}
+	for (int phi = 0; phi < PHASE_COUNT; phi++)
+	{
+		eQueueCount[phi] = stoplineArrivals[phi] - stopLineDepartures[phi]; //- currentStopCount;
+		
+		if (phi != currentPhaseIndex && eQueueCount[phi] > 2)
+		{
+			eQueueCount[phi] += 2;		/*	stopped vehicles on stop line detector for phase A or B */
+			if (phi == 2)
+				eQueueCount[phi] += 2;	/*	stopped vehicles on stop line detector for phase C*/
+
+		}
+	}
+
+	qps_GUI_printf(">>> stopline arrivals: A[%i] B[%i] C[%i]", stoplineArrivals[0], stoplineArrivals[1], stoplineArrivals[2]); 
+	qps_GUI_printf(">>> stopline count   : A[%i] B[%i] C[%i]", stopLineDepartures[0], stopLineDepartures[1], stopLineDepartures[2]); 
+	qps_GUI_printf("--> current queues  : A[%i] B[%i] C[%i]", eQueueCount[0], eQueueCount[1], eQueueCount[2]); 
 	
 	/*
 	the difference between the number of expected arrival vehicles and the actually departed vehicles at the stop line
 	expected arrival vehicles: from the arrivals Horizon (expected)
 	actually departed vehicles at stop line
 	*/
-	//TODO: using diff btwn num. of expected arrival and actually departed vehicles... Xie 2012 pp 179
 }
 
 /* ---------------------------------------------------------------------
@@ -602,6 +638,7 @@ void setControllerAllRed()
 
 void setControllerNext(int ph)
 {
+	currentPhaseIndex = ph;
 	setController(ph, APIPRI_MAJOR);
 	qps_GUI_printf("------------->Controller set to [%s] for %is", phases[ph], currentControl); 
 }
@@ -665,7 +702,7 @@ void qpx_NET_timeStep()
 		if (!isAllRed)									/* discard sequences till next phase*/	
 		{
 			std::vector<CONTROLDATA> _new (tempSeq);
-			controlSeq.clear();
+			controlSeq.clear();							//TODO: this line throwing exception
 			controlSeq.reserve(_new.size());
 			controlSeq.swap(_new);
 		}
