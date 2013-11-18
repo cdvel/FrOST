@@ -12,6 +12,7 @@
 #include <random>
 #include "REAP1.h"
 #include "REAP1Policy.h"
+
 /*
 MS bug and workaround: use std::vector  http://support.microsoft.com/kb/243444
 MUST include <vector>
@@ -220,7 +221,6 @@ namespace REAP1{
 		/* ------Agent initialised -----*/
 	}
 
-
 /* ---------------------------------------------------------------------
  * in/out
  * --------------------------------------------------------------------- */
@@ -359,7 +359,6 @@ namespace REAP1{
 	double ReAP1::getEpsilon(){
 		return epsilon;
 	}
-
 	
 	REAP1::ReAP1Policy ReAP1::getPolicy(){
 		return policy;
@@ -369,27 +368,37 @@ namespace REAP1{
 		return random;
 	}
 
-	int ReAP1::selectAction(REAP1::ReAP1Policy::REAP1STATE iState){
+	bool ReAP1::validAction(int action){
+		return true;
+	}
+	
+	void ReAP1::initPolicy(){
+		policy = REAP1::ReAP1Policy();
+	}
+
+	//5
+	/*	 update state and select action	based on e-greedy	*/
+	/*	 invoked by the controller	*/
+	int ReAP1::selectAction(REAP1::ReAP1Policy::REAP1STATE iState){		
 		std::vector<double> qVals = policy.getQvalues(iState);
 		int sAction = -1;
 
 		// based on e-greedy
-
 		random = false;
 		double maxQ = -DBL_MAX;
 		std::vector<int> dblVals;
 		dblVals.resize(qVals.size());
 		int maxdv = 0;
 
-		if(rand() < epsilon)		/*	exploration	*/
+		if(rand() < epsilon)		/*	exploring	*/
 		{	
-			sAction = -1;			// TODO: used where?
+			sAction = -1;			// TODO: check use
 			random = true;
 		}
 		else{
 			for(int ac= 0; ac < qVals.size(); ac++)
 			{
-				if(qVals[ac] > maxQ){
+				if(qVals[ac] > maxQ){		/*	exploiting	*/
 					sAction = action;
 					maxQ = qVals[action];
 					maxdv = 0;
@@ -410,36 +419,67 @@ namespace REAP1{
 			}
 		}
 
-		if(sAction == -1){		/*	random action iff all qvals equal zero or exploring	*/
+		if(sAction == -1){		/*	random action iff qvals = 0 or exploring	*/
 			sAction = 	(int) (rand()*qVals.size());
 		}
 
-		while (! controller.validAction(sAction)){
+		while (! validAction(sAction)){
 			sAction = 	(int) (rand()*qVals.size());
 		}
+	
+	
+		//update agent's action
+		action = sAction;
 	}
 
-	void ReAP1::runEpoch(){
+	//6.1
+	/*	after applying action, update state in the agent	*/
+	/*	 invoked by the controller	*/
+	void ReAP1::setNewState(REAP1::ReAP1Policy::REAP1STATE iState){
+		newState = iState;
+	}
+
+	//6.2
+	/*	after applying action, update state in the agent	*/
+	/*	 invoked by the controller	*/
+	void ReAP1::setObservedReward(double oReward){
+		reward = oReward;
+	}
+
+	//6
+	/*	after applying action, update state in the agent	*/
+	/*	 invoked by the controller	*/
+	void ReAP1::setObservedStateReward(REAP1::ReAP1Policy::REAP1STATE iState, double oReward){
+		newState = iState;
+		reward = oReward;
+	}
+
+	//7
+	void ReAP1::updateQ(){
 		
 		double tQ;		// Q-learning
 		double maxQ;
 		double nQ;
 
-		action = selectAction(state);
-		newState = Controller.getNextState(action);
-		reward = Controller.getReward();
+		//action = selectAction(state);
+		//newState = Controller.getNextState(action);
+		//reward = Controller.getReward();
 
 		tQ = policy.getQvalue(state, action);
-		maxQ = policy.getMaxQValue(newState);
+		maxQ = policy.getMaxQvalue(newState);
 
 		nQ = tQ + alpha * (reward + gamma * maxQ - tQ);		/*	compute new Q	*/
 		policy.setQvalue(state, action, nQ);		/* update Q-table*/
 
 	}
 
-	void ReAP1::initPolicy(){
-		policy = REAP1::ReAP1Policy();
+	//8
+	/*	update state in agent*/
+	/*	 invoked by the controller	*/
+	void ReAP1::updateState(){
+		state = newState;
 	}
+
 
 	vector<int> ReAP1::RunREAP() {
 

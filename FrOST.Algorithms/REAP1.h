@@ -71,10 +71,7 @@ namespace REAP1 {
 
 		REAP1_API void setOutput(bool);
 		//void setNextPhase(int phaseIndex);
-
-		REAP1_API void runEpoch();
-		REAP1_API int selectAction(REAP1::ReAP1Policy::REAP1STATE iState);
-		
+	
 		REAP1_API REAP1::ReAP1Policy getPolicy();
 		REAP1_API bool getRandomFlag();
 		REAP1_API void setAlpha(double a);
@@ -84,7 +81,18 @@ namespace REAP1 {
 		REAP1_API void setEpsilon(double e);
 		REAP1_API double getEpsilon();
 		REAP1_API void initPolicy();
+		REAP1_API bool validAction(int action);		/* check whether action is permitted */
 		
+		/*	Invoked by thread in the controller	*/
+		REAP1_API int selectAction(REAP1::ReAP1Policy::REAP1STATE iState);
+
+		REAP1_API void setNewState(REAP1::ReAP1Policy::REAP1STATE iState);	
+		REAP1_API void setObservedReward(double oReward);
+		REAP1_API void setObservedStateReward(REAP1::ReAP1Policy::REAP1STATE iState, double oReward);
+
+		REAP1_API void updateQ();
+		REAP1_API void updateState();
+
 	private:
 
 		enum PIEnum {
