@@ -24,12 +24,18 @@
     <ClInclude Include="REAP1.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="REAP1Policy.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="COP97A.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="REAP1.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="REAP1Policy.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

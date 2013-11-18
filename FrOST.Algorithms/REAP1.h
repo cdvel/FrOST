@@ -17,6 +17,8 @@ namespace std {
 #include <sstream>
 #include <iostream>
 #include <map>
+#include <set>
+#include "REAP1Policy.h"
 
 //using namespace System;
 
@@ -26,6 +28,7 @@ namespace REAP1 {
 	{
 	public: 
 		//ReAP1();
+		REAP1_API ReAP1();
 		REAP1_API ReAP1(char*, int);	//load from file
 		REAP1_API ReAP1(std::vector<int>, int, int);	//load from vector
 		REAP1_API ReAP1(char*, int, int, int); //load from string
@@ -56,8 +59,7 @@ namespace REAP1 {
 		REAP1_API void printMatrix(std::vector<std::vector<int> > );
 		REAP1_API std::vector<int> printSequence(int[], int);
 		REAP1_API void printArrivals();
-
-		
+				
 		void ReAP1::updateReward(int nReward);
 		void ReAP1::selectNextAction();
 
@@ -68,56 +70,21 @@ namespace REAP1 {
 		REAP1_API void initParameters();
 
 		REAP1_API void setOutput(bool);
-		void setNextPhase(int phaseIndex);
+		//void setNextPhase(int phaseIndex);
 
-		/* ---------------------------------------------------------------------
-		* State variables
-		* --------------------------------------------------------------------- */
-
-		struct REAP1STATE_s	// i.e. a road section connected to the intersection
-		{	
-			std::vector<int> queueLenghts;		/*		per phase		*/
-			int phaseIndex;
-			int greenRemaining;
-		};
-
-		typedef struct REAP1STATE_s	REAP1STATE;
-
-		ReAP1::REAP1STATE tState;
-		void ReAP1::updateState(REAP1STATE nState);
-
-		int nStates;		/*	(15000) queue length (capped) * phase * remaining (max green)  = 100(3-ph) * 3 * 50	*/
-		int nActions;		/*	(3) 0: extend current; 1: apply next phase; 2: skip next and apply 2nd next	*/
-
-		/* ---------------------------------------------------------------------
-		* Reward definition
-		* --------------------------------------------------------------------- */
-
-		int ReAP1::reward;
-
-		/* ---------------------------------------------------------------------
-		* Q structures
-		* --------------------------------------------------------------------- */
-
-		//std::map <REAP1STATE, double[]> Q;
-		//REAP1_API void initQ();
-
-		//struct cmpState {
-		//	bool operator()(const REAP1STATE& a, const REAP1STATE& b) const {
-		//		
-
-		//		a.phaseIndex == b.greenRemaining;
-		//		a.greenRemaining == b.greenRemaining;
-
-		//		return a.length() < b.length();
-		//	}
-		//};
-
-		//bool operator <(REAP1STATE const& lhs, REAP1STATE const& rhs)
-		//{	
-		//	return lhs
-		//}
-
+		REAP1_API void runEpoch();
+		REAP1_API int selectAction(REAP1::ReAP1Policy::REAP1STATE iState);
+		
+		REAP1_API REAP1::ReAP1Policy getPolicy();
+		REAP1_API bool getRandomFlag();
+		REAP1_API void setAlpha(double a);
+		REAP1_API double getAlpha();
+		REAP1_API void setGamma(double g);
+		REAP1_API double getGamma();
+		REAP1_API void setEpsilon(double e);
+		REAP1_API double getEpsilon();
+		REAP1_API void initPolicy();
+		
 	private:
 
 		enum PIEnum {
@@ -144,10 +111,24 @@ namespace REAP1 {
 		std::vector< std::vector<int> > arrivalData;		//---------------------> state rep
 		std::vector< std::vector<int> > v; //v_j(s_j);
 		std::vector< std::vector<int> > x_star; // optimal solutions x*_j(s_j)
-
+		
 		/* ---------------------------------------------------------------------
-		* State variables
+		* RL
 		* --------------------------------------------------------------------- */
+		
+		double epsilon;		/*	for epsilon-greedy	*/
+	    double temp;
+
+		double alpha;		/*	learning rate	*/
+		double gamma;		/*	discount factor	*/
+		double lambda;
+
+		REAP1::ReAP1Policy::REAP1STATE state;
+		REAP1::ReAP1Policy::REAP1STATE newState;
+		REAP1::ReAP1Policy policy;
+		int action;				//TODO: Use enum instead
+		double reward;
+		bool random;
 
 	};
 }

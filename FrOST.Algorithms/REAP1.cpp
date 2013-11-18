@@ -6,10 +6,12 @@
 #include <fstream>
 #include <string>
 #include <sstream>
-#include "REAP1.h"
 #include <algorithm>
 #include <iomanip>
-
+#include <float.h>
+#include <random>
+#include "REAP1.h"
+#include "REAP1Policy.h"
 /*
 MS bug and workaround: use std::vector  http://support.microsoft.com/kb/243444
 MUST include <vector>
@@ -198,6 +200,27 @@ namespace REAP1{
 	
 	};
 
+	ReAP1::ReAP1(){
+
+		// Creating new policy with dimensions to suit the world.
+    	policy = new ReAP1Policy( /*dimSize*/ );
+
+		// Initializing the policy with the initial values defined by the world.
+    	policy.initValues( /*thisWorld.getInitValues()*/ );
+    	
+		// set default values
+		epsilon = 0.1;
+		temp = 1;
+
+		alpha = 1; 
+		gamma = 0.1;
+		lambda = 0.1;  
+
+		random = false;
+		/* ------Agent initialised -----*/
+	}
+
+
 /* ---------------------------------------------------------------------
  * in/out
  * --------------------------------------------------------------------- */
@@ -307,37 +330,115 @@ namespace REAP1{
 	}
 
 /* ---------------------------------------------------------------------
- * learning & logic
+ * learning 
  * --------------------------------------------------------------------- */
-
-//	void ReAP1::initQ(){
-
-		//for (int i=0 ;i<nstate; i++)
-		//{
-		//	double actions[3] = {.0,.0,.0};
-		//	Q[tState] = actions;
-		//
-		//}
-//	}
-
-	void ReAP1::updateState(ReAP1::REAP1STATE nState)
-	{
-		 tState = nState;
-		 //TODO: overload
-		// read values from environment and store in the agents mem
+	
+	void ReAP1::setAlpha(double a){
+		if (a >=0 && a< 1)
+			alpha = a;
 	}
 
-	void ReAP1::updateReward(int newReward)
-	{
-		reward = newReward; // modify based on reward structure, eg, cummulative delay 
-
-		//compute reward from action and store or 
+	double ReAP1::getAlpha(){
+		return alpha;
 	}
 
-	void ReAP1::selectNextAction()
-	{
-		// based on the the reward and current state
-		// extend current phase (how much?) or switch to any other phase (variable sequence)
+	void ReAP1::setGamma(double g){
+		if (g >=0 && g< 1)
+			gamma = g;
+	}
+
+	double ReAP1::getGamma(){
+		return gamma;
+	}
+
+	void ReAP1::setEpsilon(double e){
+		if (e >=0 && e < 1)
+			epsilon = e;
+	}
+
+	double ReAP1::getEpsilon(){
+		return epsilon;
+	}
+
+	
+	REAP1::ReAP1Policy ReAP1::getPolicy(){
+		return policy;
+	}
+	
+	bool ReAP1::getRandomFlag(){
+		return random;
+	}
+
+	int ReAP1::selectAction(REAP1::ReAP1Policy::REAP1STATE iState){
+		std::vector<double> qVals = policy.getQvalues(iState);
+		int sAction = -1;
+
+		// based on e-greedy
+
+		random = false;
+		double maxQ = -DBL_MAX;
+		std::vector<int> dblVals;
+		dblVals.resize(qVals.size());
+		int maxdv = 0;
+
+		if(rand() < epsilon)		/*	exploration	*/
+		{	
+			sAction = -1;			// TODO: used where?
+			random = true;
+		}
+		else{
+			for(int ac= 0; ac < qVals.size(); ac++)
+			{
+				if(qVals[ac] > maxQ){
+					sAction = action;
+					maxQ = qVals[action];
+					maxdv = 0;
+					dblVals[maxdv] = sAction;
+				}
+				else
+				{ 
+					if(qVals[ac] == maxQ){
+						maxdv++;
+						dblVals[maxdv] = action;
+					}
+				}
+			}
+
+			if(maxdv > 0){
+				int rndIndex = (int) (rand()*(maxdv + 1));
+				sAction = dblVals[rndIndex];
+			}
+		}
+
+		if(sAction == -1){		/*	random action iff all qvals equal zero or exploring	*/
+			sAction = 	(int) (rand()*qVals.size());
+		}
+
+		while (! controller.validAction(sAction)){
+			sAction = 	(int) (rand()*qVals.size());
+		}
+	}
+
+	void ReAP1::runEpoch(){
+		
+		double tQ;		// Q-learning
+		double maxQ;
+		double nQ;
+
+		action = selectAction(state);
+		newState = Controller.getNextState(action);
+		reward = Controller.getReward();
+
+		tQ = policy.getQvalue(state, action);
+		maxQ = policy.getMaxQValue(newState);
+
+		nQ = tQ + alpha * (reward + gamma * maxQ - tQ);		/*	compute new Q	*/
+		policy.setQvalue(state, action, nQ);		/* update Q-table*/
+
+	}
+
+	void ReAP1::initPolicy(){
+		policy = REAP1::ReAP1Policy();
 	}
 
 	vector<int> ReAP1::RunREAP() {
@@ -355,7 +456,7 @@ namespace REAP1{
 		//updateState(NULL);
 		//updateReward();
 
-		cout << "\nOptimal Control Sequence: \n\n"; 
+		cout << "\nOptimal Control Sequence: \n\n";
 		cout << "\n\n...REAP ended\n\n";
 		return optControlSequence;
 

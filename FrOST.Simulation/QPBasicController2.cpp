@@ -702,7 +702,8 @@ void qpx_NET_timeStep()
 		if (!isAllRed)									/* discard sequences till next phase*/	
 		{
 			std::vector<CONTROLDATA> _new (tempSeq);
-			controlSeq.clear();							//TODO: this line throwing exception
+			if(controlSeq)
+				controlSeq.clear();							//TODO: verify flag or catch exception
 			controlSeq.reserve(_new.size());
 			controlSeq.swap(_new);
 		}
