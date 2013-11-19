@@ -86,7 +86,7 @@ namespace REAP1 {
 		/*	Invoked by thread in the controller	*/
 		REAP1_API int selectAction(REAP1::ReAP1Policy::REAP1STATE iState);
 
-		REAP1_API void setNewState(REAP1::ReAP1Policy::REAP1STATE iState);	
+		REAP1_API void setNewState(REAP1::ReAP1Policy::REAP1STATE iState);
 		REAP1_API void setObservedReward(double oReward);
 		REAP1_API void setObservedStateReward(REAP1::ReAP1Policy::REAP1STATE iState, double oReward);
 

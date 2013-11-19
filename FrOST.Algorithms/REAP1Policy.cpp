@@ -65,11 +65,11 @@ namespace REAP1{
 		{
 			for (int gr=0; gr<50; gr++)
 			{
-				for (int qu0=0; qu0<100; qu0++)		/*----------	queue lengths combinations per phase */
+				for (int qu0=0; qu0<=10; qu0++)		/*----------	queue lengths combinations per phase */
 				{
-					for (int qu1=0; qu1<100; qu1++)
+					for (int qu1=0; qu1<=10; qu1++)
 					{
-						for (int qu2=0; qu2<100; qu2++)
+						for (int qu2=0; qu2<=10; qu2++)
 						{
 							queueSt.clear();
 							//std::vector<int> queueSt;

@@ -185,7 +185,16 @@ unsigned __stdcall ThreadFunc( void* data )
 		xState.phaseIndex = currentPhaseIndex;
 		xState.greenRemaining = timeToRed;
 		std::vector<int> quLengths;
-		quLengths.push_back(eQueueCount[2]);quLengths.push_back(eQueueCount[1]);quLengths.push_back(eQueueCount[0]); 
+		int eq;
+		for (eq= 2; eq >= 0; eq-- )
+		{
+			if (eQueueCount[eq] > 10)			//TODO: queue groups 
+				quLengths.push_back(10);
+			else
+				quLengths.push_back(eQueueCount[eq]);
+		
+		}
+		//quLengths.push_back(eQueueCount[2]);quLengths.push_back(eQueueCount[1]);quLengths.push_back(eQueueCount[0]); 
 		xState.queueLenghts = quLengths;
 		int mAction = instances[0].selectAction(xState);	//(5)
 

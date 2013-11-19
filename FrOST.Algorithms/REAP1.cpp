@@ -204,7 +204,7 @@ namespace REAP1{
 	ReAP1::ReAP1(){
 
 		initPolicy();
-    			
+    	action = 0;		
 		// set default values
 		epsilon = 0.1;
 		temp = 1;
