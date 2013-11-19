@@ -41,6 +41,7 @@ using namespace std;
 #define		INITIAL_PHASE_INDEX 2   
 #define		NUM_LANES 2
 #define		MIN_GREEN 5
+#define		GREEN_EXTENSION 5
 #define		MAX_GREEN 50
 #define		ALL_RED 2
 #define		HORIZON_SIZE 70
@@ -137,6 +138,8 @@ int eQueueCount[3] = {0,0,0};	// in vehicles per phase
 // queue = stoplinearrivals - actualdepartures
 int stoplineArrivals[3] = {0,0,0}; // total vehicles arriving at stop line 
 int currentPhaseIndex = 0;
+float timeToRed = 0;
+float timeToNext = 0;
 /* ---------------------------------------------------------------------
  * controller
  * --------------------------------------------------------------------- */
@@ -153,26 +156,59 @@ bool isSequenceReady = false;
 bool  isFirstTime = true;
 bool isAllRed = false;
 
+bool observeNow = true;	//NEW 
+double prevDelay = 0.0;	//NEW 
+double currentDelay = 0.0;//NEW 
+
 float lastControlTime = 0.0;
 int nextPhase = INITIAL_PHASE_INDEX;
 int nextControl = 0;
 int currentControl = 0;
 int seqIndex = 0;
 
+REAP1::ReAP1Policy::REAP1STATE xState;
 
 
 /* -----------------------------------------------------------------------
 * Runs algorithm on a separate thread and updates control sequence
 * --------------------------------------------------------------------- */
 
-unsigned __stdcall COPThreadFunc( void* data )
+unsigned __stdcall ThreadFunc( void* data )
 {
 	isThreadRunning = true;
 
-
 	clock_t tStart = clock();
-	instances[0].setArrivals(arrivalsHorizon);	/*	set to latest horizon */
-	control = instances[0].RunREAP();
+	//instances[0].setArrivals(arrivalsHorizon);	/*	set to latest horizon */
+	//TODO: check to clear control
+	if (!observeNow)	// applying action to environment;
+	{
+		xState.phaseIndex = currentPhaseIndex;
+		xState.greenRemaining = timeToRed;
+		std::vector<int> quLengths;
+		quLengths.push_back(eQueueCount[2]);quLengths.push_back(eQueueCount[1]);quLengths.push_back(eQueueCount[0]); 
+		xState.queueLenghts = quLengths;
+		int mAction = instances[0].selectAction(xState);	//(5)
+
+		if (mAction == 0)	// extend
+		{
+			currentControl += GREEN_EXTENSION;
+		}
+		else
+		{
+			control.clear();
+			if (mAction == 1)	
+				control.push_back(MIN_GREEN);		/*	don't extend and switch to next	*/
+			else		
+				control.push_back(0); control.push_back(MIN_GREEN);		/*	skip next and switch to 2nd next	*/
+		}
+	}
+	else
+	{		// observing state-reward after action
+		instances[0].setObservedStateReward(xState,currentDelay - prevDelay);	//(6)
+		observeNow = false;
+	}
+
+//	control = instances[0].RunREAP();
 	/* to run it at a predetermined frequency, add ms to ttaken and sleep, e.g, Sleep( 5000L - ttaken ); */
 	double ttaken = (double)(clock() - tStart)/CLOCKS_PER_SEC;
 	if (!isAllRed)
@@ -339,9 +375,10 @@ void qpx_NET_postOpen(void)
 		*/
 	}
 
-	/********		 COP instance(s)		******/
+	/********		 Agent instance(s)		******/
 
-	instances.push_back(REAP1::ReAP1(2, 70));  //empty with initial phase and horizon
+	REAP1::ReAP1 rp =  REAP1::ReAP1();
+	instances.push_back(rp);  /*	includes policy instance */
 
 	instances[0].setMaxPhCompute(MAX_SEQUENCE);
 	instances[0].setOutput(false);
@@ -358,6 +395,13 @@ void qpx_NET_postOpen(void)
 	instances[0].setLanePhases(0, 1); //no. of lanes for each phase, used for saturation flow
 	instances[0].setLanePhases(1, 1);
 	instances[0].setLanePhases(2, 2);
+
+	REAP1::ReAP1Policy::REAP1STATE inState;
+	inState.greenRemaining = MAX_GREEN;
+	inState.phaseIndex = 2;
+	std::vector<int> ques; ques.push_back(0); ques.push_back(0); ques.push_back(0);
+	inState.queueLenghts = ques; 
+	instances[0].getPolicy().setState(inState);
 }
 
 
@@ -445,7 +489,6 @@ void updateHorizon( float simulationTime)
 	{
 		if (detectedArrivals[i].arrivalTime < simulationTime) // if estimated arrival has passed
 		{														
-			
 			int iPhase = detectedArrivals[i].phase;
 			std::vector<ARRIVALDATA>::iterator it = detectedArrivals.begin();
 			std::advance(it, i);
@@ -480,7 +523,7 @@ void updateHorizon( float simulationTime)
 /* ---------------------------------------------------------------------
 * return total expected arrivals (5 steps) per phase
 * --------------------------------------------------------------------- */
-int lookupExpectedArrivals(int phaseIdx, int nEntries)
+int lookupExpectedArrivals(int phaseIdx, int nEntries)		//NEW
 {	
 	int exArrivals = 0;
 
@@ -528,7 +571,7 @@ int getPhaseByProbability(int detectorIndex)
 * Use upstream and stopline detector data to estimate queue lengths per phase
 * --------------------------------------------------------------------- */
 
-void estimateQueues(float currentTime)
+void estimateQueues(float currentTime)		//NEW
 {
 	//int exArrivals[3] = {0,0,0};
 	//eQueueCount[0]= 0;eQueueCount[1]= 0;eQueueCount[2]= 0;
@@ -573,8 +616,8 @@ void estimateQueues(float currentTime)
 		}
 	}
 
-	qps_GUI_printf(">>> stopline arrivals: A[%i] B[%i] C[%i]", stoplineArrivals[0], stoplineArrivals[1], stoplineArrivals[2]); 
-	qps_GUI_printf(">>> stopline count   : A[%i] B[%i] C[%i]", stopLineDepartures[0], stopLineDepartures[1], stopLineDepartures[2]); 
+	//qps_GUI_printf(">>> stopline arrivals: A[%i] B[%i] C[%i]", stoplineArrivals[0], stoplineArrivals[1], stoplineArrivals[2]); 
+	//qps_GUI_printf(">>> stopline count   : A[%i] B[%i] C[%i]", stopLineDepartures[0], stopLineDepartures[1], stopLineDepartures[2]); 
 	qps_GUI_printf("--> current queues  : A[%i] B[%i] C[%i]", eQueueCount[0], eQueueCount[1], eQueueCount[2]); 
 	
 	/*
@@ -583,6 +626,18 @@ void estimateQueues(float currentTime)
 	actually departed vehicles at stop line
 	*/
 }
+
+void estimateDelay()			//TODO: is just delay of queueing vehicles
+{
+	prevDelay = currentDelay;
+	for (int i=0; i<PHASE_COUNT; i++)
+	{
+		if(currentPhaseIndex != i)
+			currentDelay += 0.5 * eQueueCount[i];	// queue by time step
+	
+	}
+}
+
 
 /* ---------------------------------------------------------------------
 * print current horizon to file
@@ -662,19 +717,15 @@ void qpx_NET_timeStep()
 
 		if (currentCount != loopUpDetectorData[i].lastCount) 		/*	add new vehicles detectedArrivals	*/
 		{
-			// TODO:  if queue reaches upstream then rubbish data... VALIDATE
-			ARRIVALDATA dta;
-			dta.speed = qpg_DTL_speed(upstLoop, APILOOP_COMPLETE);
+			ARRIVALDATA dta;	
+			dta.speed = qpg_DTL_speed(upstLoop, APILOOP_COMPLETE);	// TODO:  validate for rubbish data overflown queues
 			dta.arrivalTime = getEstimatedArrivalTime(currentTime, dta.speed, UPSTREAM_DETECTOR_DISTANCE);
 			dta.detectionTime = currentTime;
 			dta.phase = getPhaseByProbability(i);
 			detectedArrivals.push_back(dta);
 			loopUpDetectorData[i].lastCount = currentCount;
 		}
-		// TODO: here???
-//		LOOP* stoplineLoop = loopStDetectorData[i].stopLineDecLoop;
-//		int currentStoplCount = qpg_DTL_count(stoplineLoop, 0); /*	update stopline count */
-//		loopStDetectorData[i].lastCount = currentStoplCount;
+
 	}
 
 	/* ---------------------------------------------------------------------
@@ -682,6 +733,7 @@ void qpx_NET_timeStep()
 	* --------------------------------------------------------------------- */
 	updateHorizon(currentTime);
 	estimateQueues(currentTime);
+	estimateDelay();
 
 	if(!isThreadRunning)		/*	manage algorithm thread 	*/
 	{	
@@ -691,19 +743,18 @@ void qpx_NET_timeStep()
 		if (isAllRed)
 			hThread = new HANDLE();
 		else
-			hThread = (HANDLE)_beginthreadex( NULL, 0, &COPThreadFunc, NULL, 0, &threadID);		/* init new thread */		
+			hThread = (HANDLE)_beginthreadex( NULL, 0, &ThreadFunc, NULL, 0, &threadID);		/* init new thread */		
 	}
 
-	float timeToRed = lastControlTime + currentControl; /*	switch points */
-	float timeToNext = timeToRed + ALL_RED;
+	timeToRed = lastControlTime + currentControl; /*	switch points	*/
+	timeToNext = timeToRed + ALL_RED;
 
 	if (isSequenceReady)
 	{
 		if (!isAllRed)									/* discard sequences till next phase*/	
 		{
 			std::vector<CONTROLDATA> _new (tempSeq);
-			if(controlSeq)
-				controlSeq.clear();							//TODO: verify flag or catch exception
+			controlSeq.clear();							//TODO: verify flag or catch exception
 			controlSeq.reserve(_new.size());
 			controlSeq.swap(_new);
 		}
@@ -713,6 +764,11 @@ void qpx_NET_timeStep()
 			timeToNext = currentTime;
 			isFirstTime =false;
 			isAllRed = false;
+		}
+
+		if (timeToRed-2 == currentTime)	//NEW
+		{								
+			observeNow = false;		// control point: 2 secs before end of phase; compute next action
 		}
 
 		if (timeToRed == currentTime)
@@ -743,8 +799,6 @@ void qpx_NET_timeStep()
 			nextPhase = (nextPhase == 2) ? 0: nextPhase+1;		/*	prepare next phase	*/
 			lastControlTime = currentTime;
 		}
-	
-		
 	}
 }
 

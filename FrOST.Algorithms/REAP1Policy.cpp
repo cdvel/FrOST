@@ -55,6 +55,7 @@ namespace REAP1{
 	ReAP1Policy::REAP1STATE ReAP1Policy::setState(ReAP1Policy::REAP1STATE state)
 	{
 		tState = state;
+		return tState;
 	}
 	
 	void ReAP1Policy::initQValues(double iValue){
@@ -106,7 +107,7 @@ namespace REAP1{
 	double ReAP1Policy::getMaxQvalue(REAP1STATE state){
 		double maxQ = -DBL_MAX;
 		std::vector< double> qValues = Q[state];
-		for (int a= 0; a< qValues.size(); a++)
+		for (unsigned int a= 0; a< qValues.size(); a++)
 		{
 			if (qValues[a] > maxQ)
 				maxQ = qValues[a];

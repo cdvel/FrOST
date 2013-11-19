@@ -203,12 +203,8 @@ namespace REAP1{
 
 	ReAP1::ReAP1(){
 
-		// Creating new policy with dimensions to suit the world.
-    	policy = new ReAP1Policy( /*dimSize*/ );
-
-		// Initializing the policy with the initial values defined by the world.
-    	policy.initValues( /*thisWorld.getInitValues()*/ );
-    	
+		initPolicy();
+    			
 		// set default values
 		epsilon = 0.1;
 		temp = 1;
@@ -396,7 +392,7 @@ namespace REAP1{
 			random = true;
 		}
 		else{
-			for(int ac= 0; ac < qVals.size(); ac++)
+			for(unsigned int ac= 0; ac < qVals.size(); ac++)
 			{
 				if(qVals[ac] > maxQ){		/*	exploiting	*/
 					sAction = action;
@@ -430,6 +426,7 @@ namespace REAP1{
 	
 		//update agent's action
 		action = sAction;
+		return action;
 	}
 
 	//6.1
@@ -479,8 +476,7 @@ namespace REAP1{
 	void ReAP1::updateState(){
 		state = newState;
 	}
-
-
+	
 	vector<int> ReAP1::RunREAP() {
 
 		std::vector<int> optControlSequence;
@@ -501,5 +497,4 @@ namespace REAP1{
 		return optControlSequence;
 
 	}; 
-
 }

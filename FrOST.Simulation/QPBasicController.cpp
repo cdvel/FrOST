@@ -139,8 +139,7 @@ int seqIndex = 0;
 unsigned __stdcall COPThreadFunc( void* data )
 {
 	isThreadRunning = true;
-
-
+	
 	clock_t tStart = clock();
 	instances[0].setArrivals(arrivalsHorizon);	/*	set to latest horizon */
 	control = instances[0].RunCOP();
