@@ -410,7 +410,8 @@ namespace REAP1{
 			}
 
 			if(maxdv > 0){
-				int rndIndex = (int) (rand()*(maxdv + 1));
+				//int rndIndex = (int) (rand()*(maxdv + 1));
+				int rndIndex = rand() % (maxdv+1); // 0 to (maxdv)		//NEW 
 				sAction = dblVals[rndIndex];
 			}
 		}
