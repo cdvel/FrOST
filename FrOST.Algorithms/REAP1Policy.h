@@ -109,7 +109,7 @@ namespace REAP1 {
 					}
 					
 				}
-				return true;// same 
+				return false;// same ; irreflexive, strict weak order
 			}
 		};
 
