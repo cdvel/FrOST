@@ -87,9 +87,9 @@ namespace REAP1 {
 		REAP1_API int selectAction(REAP1::ReAP1Policy::REAP1STATE iState);
 
 		REAP1_API void setNewState(REAP1::ReAP1Policy::REAP1STATE iState);
-		REAP1_API void setObservedReward(double oReward);
-		REAP1_API void setObservedStateReward(REAP1::ReAP1Policy::REAP1STATE iState, double oReward);
-
+		REAP1_API void setNewReward(double oReward);
+		REAP1_API void setNewStateReward(REAP1::ReAP1Policy::REAP1STATE iState, double oReward);
+		REAP1_API void setInitialState(REAP1::ReAP1Policy::REAP1STATE st);
 		REAP1_API void updateQ();
 		REAP1_API void updateState();
 

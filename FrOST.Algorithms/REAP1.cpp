@@ -329,6 +329,11 @@ namespace REAP1{
  * learning 
  * --------------------------------------------------------------------- */
 	
+	void ReAP1::setInitialState(REAP1::ReAP1Policy::REAP1STATE st)
+	{
+		state = st;
+	}
+
 	void ReAP1::setAlpha(double a){
 		if (a >=0 && a< 1)
 			alpha = a;
@@ -440,14 +445,14 @@ namespace REAP1{
 	//6.2
 	/*	after applying action, update state in the agent	*/
 	/*	 invoked by the controller	*/
-	void ReAP1::setObservedReward(double oReward){
+	void ReAP1::setNewReward(double oReward){
 		reward = oReward;
 	}
 
 	//6
 	/*	after applying action, update state in the agent	*/
 	/*	 invoked by the controller	*/
-	void ReAP1::setObservedStateReward(REAP1::ReAP1Policy::REAP1STATE iState, double oReward){
+	void ReAP1::setNewStateReward(REAP1::ReAP1Policy::REAP1STATE iState, double oReward){
 		newState = iState;
 		reward = oReward;
 	}

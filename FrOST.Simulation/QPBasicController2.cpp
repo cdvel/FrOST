@@ -167,7 +167,7 @@ int currentControl = 0;
 int seqIndex = 0;
 
 REAP1::ReAP1Policy::REAP1STATE xState;
-
+bool actionTaken = false;
 
 /* -----------------------------------------------------------------------
 * Runs algorithm on a separate thread and updates control sequence
@@ -176,48 +176,40 @@ REAP1::ReAP1Policy::REAP1STATE xState;
 unsigned __stdcall ThreadFunc( void* data )
 {
 	isThreadRunning = true;
-
+	
 	clock_t tStart = clock();
 	//instances[0].setArrivals(arrivalsHorizon);	/*	set to latest horizon */
 	//TODO: check to clear control
-	if (!observeNow)	// applying action to environment;
+
+	/* RL ------interaction steps-------	*/
+
+	if(!actionTaken)
 	{
-		xState.phaseIndex = currentPhaseIndex;
-		xState.greenRemaining = timeToRed;
-		std::vector<int> quLengths;
-		int eq;
-		for (eq= 2; eq >= 0; eq-- )
+		int act = instances[0].selectAction(xState); //5	// TODO: check whether to init -state field- somewhere else...  
+		control.clear();
+		switch(act)
 		{
-			if (eQueueCount[eq] > 10)			//TODO: queue groups 
-				quLengths.push_back(10);
-			else
-				quLengths.push_back(eQueueCount[eq]);
-		
-		}
-		//quLengths.push_back(eQueueCount[2]);quLengths.push_back(eQueueCount[1]);quLengths.push_back(eQueueCount[0]); 
-		xState.queueLenghts = quLengths;
-		int mAction = instances[0].selectAction(xState);	//(5)
-
-		if (mAction == 0)	// extend
-		{
-			currentControl += GREEN_EXTENSION;
-		}
-		else
-		{
-			control.clear();
-			if (mAction == 1)	
-				control.push_back(MIN_GREEN);		/*	don't extend and switch to next	*/
-			else		
-				control.push_back(0); control.push_back(MIN_GREEN);		/*	skip next and switch to 2nd next	*/
+			case 0:	//control.push_back(0);	//NEW
+					currentControl += GREEN_EXTENSION;	//extend
+					break;
+			case 1: control.push_back(MIN_GREEN);	// switch next
+					break;
+			case 2: control.push_back(0); control.push_back(MIN_GREEN); // skip next and switch
+					break;
 		}
 	}
-	else
-	{		// observing state-reward after action
-		instances[0].setObservedStateReward(xState,currentDelay - prevDelay);	//(6)
-		observeNow = false;
+	else{
+		/*	When controller has completed the last action	*/
+		instances[0].setNewState(xState);	//6.1
+		instances[0].setNewReward(currentDelay - prevDelay); //6.2
+		instances[0].updateQ();	//7
+		instances[0].updateState(); //8
 	}
+	
 
-//	control = instances[0].RunREAP();
+	/* ------end RL interaction steps-------	*/
+
+	//	control = instances[0].RunREAP();
 	/* to run it at a predetermined frequency, add ms to ttaken and sleep, e.g, Sleep( 5000L - ttaken ); */
 	double ttaken = (double)(clock() - tStart)/CLOCKS_PER_SEC;
 	if (!isAllRed)
@@ -240,13 +232,14 @@ unsigned __stdcall ThreadFunc( void* data )
 			}
 
 			message << phases[cPhase] << ":" << dur << "\t";
-			cPhase = (cPhase == 2) ? 0: cPhase+1;				/* update phase	*/
+			
+				cPhase = (cPhase == 2) ? 0: cPhase+1;				/* update phase	*/
 		}
 
 		float hh = qpg_CFG_simulationTime();
 		float mm =  fmod(hh, 60); 
 		hh = hh / 60;
-		//qps_GUI_printf("\a REAP: %im %4.2fs \t%4.2fs \t %s ",(int)hh ,mm, ttaken, message.str().c_str());
+		qps_GUI_printf("\a REAP: %im %4.2fs \t%4.2fs \t %s ",(int)hh ,mm, ttaken, message.str().c_str());
 	}
 	isThreadRunning = false;
 	isSequenceReady = tempSeq.size() > 0;
@@ -411,6 +404,11 @@ void qpx_NET_postOpen(void)
 	std::vector<int> ques; ques.push_back(0); ques.push_back(0); ques.push_back(0);
 	inState.queueLenghts = ques; 
 	instances[0].getPolicy().setState(inState);
+	instances[0].setInitialState(inState);		//3
+	xState = inState;
+
+	currentPhaseIndex = inState.phaseIndex;		//NEW
+	timeToRed = inState.greenRemaining;
 }
 
 
@@ -648,6 +646,25 @@ void estimateDelay()			//TODO: is just delay of queueing vehicles
 }
 
 
+void updateState()
+{
+	xState.phaseIndex = currentPhaseIndex;
+	xState.greenRemaining = timeToRed;
+	std::vector<int> quLengths;
+    int eq;
+    for (eq= 2; eq >= 0; eq-- )
+    {
+      if (eQueueCount[eq] > 10)     //TODO: queue groups 
+        quLengths.push_back(10);
+      else
+        quLengths.push_back(eQueueCount[eq]);
+    
+    }
+    //quLengths.push_back(eQueueCount[2]);quLengths.push_back(eQueueCount[1]);quLengths.push_back(eQueueCount[0]); 
+    xState.queueLenghts = quLengths;
+
+}
+
 /* ---------------------------------------------------------------------
 * print current horizon to file
 * --------------------------------------------------------------------- */
@@ -707,19 +724,12 @@ void setControllerNext(int ph)
 	qps_GUI_printf("------------->Controller set to [%s] for %is", phases[ph], currentControl); 
 }
 
-/* ---------------------------------------------------------------------
-* every simulated step, works best at 0.5s resolution
-* --------------------------------------------------------------------- */
-
-void qpx_NET_timeStep()
+void probeUpstreamDetectors(float currentTime)
 {
-	float step = qpg_CFG_timeStep();
-	float currentTime = qpg_CFG_simulationTime();
-
 	/* ---------------------------------------------------------------------
 	* probe loop detectors for vehicles
 	* --------------------------------------------------------------------- */
-	for(int i=0; i < 8 ; i ++) 	/* check all loop detectors (upstream and stopline); two per approach	*/
+	for(int i=0; i < 8 ; i ++) 	/* check all loop detectors (upstream); two per approach	*/
 	{
 		LOOP* upstLoop = loopUpDetectorData[i].upstreamDecLoop;
 		int currentCount = qpg_DTL_count(upstLoop, 0); 		/*	zero to count all vehicle types	*/
@@ -734,16 +744,11 @@ void qpx_NET_timeStep()
 			detectedArrivals.push_back(dta);
 			loopUpDetectorData[i].lastCount = currentCount;
 		}
-
 	}
+}
 
-	/* ---------------------------------------------------------------------
-	* populate prediction horizon with arrival and queue estimates
-	* --------------------------------------------------------------------- */
-	updateHorizon(currentTime);
-	estimateQueues(currentTime);
-	estimateDelay();
-
+void manageThread()
+{
 	if(!isThreadRunning)		/*	manage algorithm thread 	*/
 	{	
 		if(hThread != NULL)
@@ -754,6 +759,28 @@ void qpx_NET_timeStep()
 		else
 			hThread = (HANDLE)_beginthreadex( NULL, 0, &ThreadFunc, NULL, 0, &threadID);		/* init new thread */		
 	}
+}
+
+/* ---------------------------------------------------------------------
+* every simulated step, works best at 0.5s resolution
+* --------------------------------------------------------------------- */
+
+void qpx_NET_timeStep()
+{
+	float step = qpg_CFG_timeStep();
+	float currentTime = qpg_CFG_simulationTime();
+
+	probeUpstreamDetectors(currentTime);
+
+	/* ---------------------------------------------------------------------
+	* populate prediction horizon with arrival and queue estimates
+	* --------------------------------------------------------------------- */
+	updateHorizon(currentTime);
+	estimateQueues(currentTime);
+	estimateDelay();
+	updateState();	//pre-5
+
+	manageThread();
 
 	timeToRed = lastControlTime + currentControl; /*	switch points	*/
 	timeToNext = timeToRed + ALL_RED;
@@ -775,9 +802,9 @@ void qpx_NET_timeStep()
 			isAllRed = false;
 		}
 
-		if (timeToRed-2 == currentTime)	//NEW
+		if (timeToRed-2 == currentTime)	//NEW	// TODO: tweak based on algo time
 		{								
-			observeNow = false;		// control point: 2 secs before end of phase; compute next action
+			actionTaken = true;		// control point: 2 secs before end of phase; compute next action
 		}
 
 		if (timeToRed == currentTime)
@@ -797,16 +824,21 @@ void qpx_NET_timeStep()
 				currentControl = nxt.duration;
 				setControllerNext(nxt.phase);
 				nextPhase = nxt.phase;
-			}
-			else
-			{
-				currentControl = MAX_GREEN;				/*	if no control seq, set max	green*/
-				setControllerNext(nextPhase);
-			}
+					
+				isAllRed = false;	//* MOVED HERE
+				nextPhase = (nextPhase == 2) ? 0: nextPhase+1;		/*	prepare next phase	*/
+				lastControlTime = currentTime;
 
-			isAllRed = false;
-			nextPhase = (nextPhase == 2) ? 0: nextPhase+1;		/*	prepare next phase	*/
-			lastControlTime = currentTime;
+			}
+//			else
+//			{
+					//NEW do nothing; extending current control
+				//currentControl = MAX_GREEN;				/*	if no control seq, set max	green*/
+				//setControllerNext(nextPhase);
+//			}
+		
+			//* WAS HERE
+
 		}
 	}
 }
