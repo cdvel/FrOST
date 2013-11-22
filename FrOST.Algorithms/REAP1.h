@@ -16,7 +16,6 @@ namespace std {
 #include <string>
 #include <sstream>
 #include <iostream>
-#include <map>
 #include <set>
 #include "REAP1Policy.h"
 

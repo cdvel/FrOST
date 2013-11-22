@@ -45,7 +45,7 @@ namespace REAP1{
 	ReAP1Policy::REAP1STATE ReAP1Policy::getStateInstance(std::vector<int> pQueues, int iPhase, int rGreen)
 	{
 		ReAP1Policy::REAP1STATE state;
-		state.queueLenghts.swap(pQueues);	// TODO: test this swap
+		state.queueLengths.swap(pQueues);	// TODO: test this swap
 		state.phaseIndex = iPhase;
 		state.greenRemaining = rGreen;
 		return state;
@@ -59,11 +59,12 @@ namespace REAP1{
 	}
 	
 	void ReAP1Policy::initQValues(double iValue){
-		std::vector<int> queueSt;
+		
+
 		// TODO: try without initialisating- When updating set rnd value and add key-value pair
 		for (int cph=0; cph<3; cph++)	/*	build all possible state representations	*/
 		{
-			for (int gr=0; gr<50; gr++)
+			for (int gr=0; gr<=50; gr++)
 			{
 				for (int qu0=0; qu0<=10; qu0++)		/*----------	queue lengths combinations per phase */
 				{
@@ -71,14 +72,25 @@ namespace REAP1{
 					{
 						for (int qu2=0; qu2<=10; qu2++)
 						{
-							queueSt.clear();
+							std::vector<int> queueSt;
 							//std::vector<int> queueSt;
 							queueSt.push_back(qu0);queueSt.push_back(qu1);queueSt.push_back(qu2);
-							REAP1STATE nState = getStateInstance(queueSt, gr, cph);
+							ReAP1Policy::REAP1STATE nstate;
+							nstate.queueLengths.swap(queueSt);	// TODO: test this swap
+							nstate.phaseIndex = cph;
+							nstate.greenRemaining = gr;
+
+							//REAP1STATE nState = getStateInstance(queueSt, gr, cph);
 																					
-							std::vector<double> qValues;	/*	add to Q values	; number of actions = 3 */
-							qValues.push_back(iValue);qValues.push_back(iValue);qValues.push_back(iValue);
-							Q[nState] = qValues;
+							//std::vector<double> qValues;	/*	add to Q values	; number of actions = 3 */
+							//qValues.push_back(iValue);qValues.push_back(iValue);qValues.push_back(iValue);
+							REAP1QVALUES qValues;
+							qValues.qValue1 = iValue;
+							qValues.qValue2 = iValue;
+							qValues.qValue3 = iValue;
+
+							Q[nstate] = qValues;
+							//Q.insert(std::make_pair(nstate,qValues));
 						}
 					}
 				}	/*------------	end queue loops	*/
@@ -91,22 +103,43 @@ namespace REAP1{
 	
 	std::vector< double> ReAP1Policy::getQvalues(REAP1STATE state){
 		std::vector< double> newQ;
-		newQ.reserve(Q[state].size());
-		newQ.swap (Q[state]);
+		newQ.push_back(Q[state].qValue3);
+		newQ.push_back(Q[state].qValue2);
+		newQ.push_back(Q[state].qValue1);
+
+		//newQ.reserve(Q[state].size());
+		//newQ.swap (Q[state]);
 		return ( newQ );		//TODO: verify passing by value
 	}
 
 	void ReAP1Policy::setQvalue(REAP1STATE state, int action, double newQ){
-		Q[state][action] = newQ;
+
+		switch (action)
+		{
+			case 0: Q[state].qValue1 = newQ;
+						break;
+			case 1: Q[state].qValue2 = newQ;
+						break;
+			case 2: Q[state].qValue3 = newQ;
+						break;
+		}
+		//Q[state][action] = newQ;
 	}
 
 	double ReAP1Policy::getQvalue(REAP1STATE state, int action){
-		return Q[state][action];
+		//return Q[state][action];
+		switch (action)
+		{
+			case 0: return Q[state].qValue1; break;
+			case 1: return Q[state].qValue2; break;
+			case 2: return Q[state].qValue3; break;
+			default: return 0.0; break;
+		}
 	}
 
 	double ReAP1Policy::getMaxQvalue(REAP1STATE state){
 		double maxQ = -DBL_MAX;
-		std::vector< double> qValues = Q[state];
+		std::vector< double> qValues = getQvalues(state);
 		for (unsigned int a= 0; a< qValues.size(); a++)
 		{
 			if (qValues[a] > maxQ)

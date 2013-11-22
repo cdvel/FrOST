@@ -35,12 +35,20 @@ namespace REAP1 {
 
 		struct REAP1STATE_s	// i.e. a road section connected to the intersection
 		{	
-			std::vector<int> queueLenghts;		/*		per phase		*/
+			std::vector<int> queueLengths;		/*		per phase		*/
 			int phaseIndex;
 			int greenRemaining;
 		};
 
+		struct REAP1QVALUES_s
+		{	
+			double qValue1;
+			double qValue2;
+			double qValue3;
+		};
+
 		typedef struct REAP1STATE_s	REAP1STATE;
+		typedef struct REAP1QVALUES_s	REAP1QVALUES;
 
 		ReAP1Policy::REAP1STATE tState;
 		void ReAP1Policy::updateState(REAP1STATE nState);
@@ -58,21 +66,58 @@ namespace REAP1 {
 		/* ---------------------------------------------------------------------
 		* Q structures
 		* --------------------------------------------------------------------- */
-		struct comparatorState {
-			inline bool operator()(const REAP1STATE& a, const REAP1STATE& b) const {
+		struct stateCompare {
+			inline bool operator()(const REAP1STATE & a, const REAP1STATE & b) const {
+				if (a.phaseIndex < b.phaseIndex) return true;
+				else{
+					if (a.phaseIndex > b.phaseIndex) return false;
+					else
+					{	// phase equals
+						if(a.greenRemaining < b.greenRemaining) return true;
+						else
+						{
+							if(a.greenRemaining > b.greenRemaining) return false;
+							else
+							{
+								//green equals
+								if(a.queueLengths[0] < b.queueLengths[0]) return true;
+								else
+								{
+									if (a.queueLengths[0] > b.queueLengths[0]) return false;
+									else
+										//queue0 equals
+										if (a.queueLengths[1] < b.queueLengths[1]) return true;
+										else
+										{
+											if (a.queueLengths[1] > b.queueLengths[1]) return false;
+											else
+											{
+												//queue1 equals
+												if (a.queueLengths[2] < b.queueLengths[2]) return true;
+												else
+												{
+													if (a.queueLengths[2] > b.queueLengths[2]) return false;
+													//else
+														//return true;	
+												}
+											}
+										}
+								}
+							}
+						}
 
-				bool isEqual = false;
-
-				for(int ph = 0; ph < 3; ph++ )	/*	replace magic number	*/
-				{
-					isEqual = isEqual && (a.queueLenghts[ph] == b.queueLenghts[ph]);
+					}
+					
 				}
-				
-				return isEqual && (a.phaseIndex == b.greenRemaining) && (a.greenRemaining == b.greenRemaining);
+				return true;// same 
 			}
 		};
 
-		std::map <REAP1STATE, std::vector< double>, comparatorState> Q;
+//		typedef std::map<REAP1STATE,std::vector< double>, comparatorState> Qtable;
+//		Qtable Q;
+		std::map<REAP1STATE,REAP1QVALUES, stateCompare> Q;
+
+		//std::map <REAP1STATE, std::vector< double>, comparatorState> Q;
 		REAP1POLICY_API void initQValues(double iValue);	/*	1	*/
 		REAP1POLICY_API REAP1STATE setState(REAP1STATE state);		/*	2	*/
 		REAP1POLICY_API std::vector< double> getQvalues(REAP1STATE state);
@@ -81,7 +126,6 @@ namespace REAP1 {
 		REAP1POLICY_API double getMaxQvalue(REAP1STATE state);
 		REAP1POLICY_API ReAP1Policy::REAP1STATE getStateInstance(std::vector<int> pQueues, int iPhase, int rGreen);
 		
-
 		//private:
 
 		///* ---------------------------------------------------------------------

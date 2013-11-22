@@ -176,21 +176,18 @@ bool actionTaken = false;
 unsigned __stdcall ThreadFunc( void* data )
 {
 	isThreadRunning = true;
-	
 	clock_t tStart = clock();
-	//instances[0].setArrivals(arrivalsHorizon);	/*	set to latest horizon */
 	//TODO: check to clear control
 
 	/* RL ------interaction steps-------	*/
-
 	if(!actionTaken)
 	{
 		int act = instances[0].selectAction(xState); //5	// TODO: check whether to init -state field- somewhere else...  
 		control.clear();
 		switch(act)
 		{
-			case 0:	//control.push_back(0);	//NEW
-					currentControl += GREEN_EXTENSION;	//extend
+			case 0:	control.push_back(GREEN_EXTENSION);	//NEW
+					//currentControl += GREEN_EXTENSION;	//extend
 					break;
 			case 1: control.push_back(MIN_GREEN);	// switch next
 					break;
@@ -205,8 +202,6 @@ unsigned __stdcall ThreadFunc( void* data )
 		instances[0].updateQ();	//7
 		instances[0].updateState(); //8
 	}
-	
-
 	/* ------end RL interaction steps-------	*/
 
 	//	control = instances[0].RunREAP();
@@ -402,7 +397,7 @@ void qpx_NET_postOpen(void)
 	inState.greenRemaining = MAX_GREEN;
 	inState.phaseIndex = 2;
 	std::vector<int> ques; ques.push_back(0); ques.push_back(0); ques.push_back(0);
-	inState.queueLenghts = ques; 
+	inState.queueLengths = ques; 
 	instances[0].getPolicy().setState(inState);
 	instances[0].setInitialState(inState);		//3
 	xState = inState;
@@ -658,10 +653,9 @@ void updateState()
         quLengths.push_back(10);
       else
         quLengths.push_back(eQueueCount[eq]);
-    
     }
     //quLengths.push_back(eQueueCount[2]);quLengths.push_back(eQueueCount[1]);quLengths.push_back(eQueueCount[0]); 
-    xState.queueLenghts = quLengths;
+    xState.queueLengths = quLengths;
 
 }
 
@@ -838,7 +832,7 @@ void qpx_NET_timeStep()
 //			}
 		
 			//* WAS HERE
-
+	
 		}
 	}
 }
