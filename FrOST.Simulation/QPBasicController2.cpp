@@ -186,7 +186,7 @@ unsigned __stdcall ThreadFunc( void* data )
 		control.clear();
 		switch(act)
 		{
-			case 0:	control.push_back(GREEN_EXTENSION);	//NEW
+			case 0:	control.push_back(MIN_GREEN);	//NEW control.push_back(GREEN_EXTENSION);	//NEW
 					//currentControl += GREEN_EXTENSION;	//extend
 					break;
 			case 1: control.push_back(MIN_GREEN);	// switch next
@@ -555,8 +555,8 @@ int getPhaseByProbability(int detectorIndex)
 
 	int phase = 2;
 
-	/*	A {1, 2, 4, 5} B or C {2, 3, 6, 7}	*/	
-	if (detectorIndex > 5 || (detectorIndex > 1 && detectorIndex < 4)) // B or C
+	/*	C {0, 1, 4, 5} A or B {2, 3, 6, 7}	*/	
+	if (detectorIndex > 5 || (detectorIndex > 1 && detectorIndex < 4)) // A or B
 	{
 		double udr = ((double) rand() / (RAND_MAX+1));		/*	a uniformly distributed random value	*/
 		phase = udr > leftTurnProportion ? 0 : 1; //A=0;  B = 1; C=2,
@@ -567,6 +567,15 @@ int getPhaseByProbability(int detectorIndex)
 	appr 0	0	1	1	2	2	3	3
 	*/
 	return phase;
+}
+
+// returns 2 if phase C; 0 if phase A or B
+int getDetectorPhaseGroup(int detectorIndex)
+{
+	if (detectorIndex > 5 || (detectorIndex > 1 && detectorIndex < 4))
+		return 0;
+	else
+		return 2;
 }
 
 /* ---------------------------------------------------------------------
@@ -585,8 +594,56 @@ void estimateQueues(float currentTime)		//NEW
 		int currentStopCount = qpg_DTL_count(stoplineLoop, 0); 		/*	zero to count all vehicle types	*/
 
 		int	iPhase = getPhaseByProbability(detectorIndex);	// TODO: noisy function; find another solution
-		stopLineDepartures[iPhase] += currentStopCount;
-		loopStDetectorData[detectorIndex].lastCount = currentStopCount;
+		
+		int phGroup = getDetectorPhaseGroup(detectorIndex);
+
+		if (phGroup == 2)
+			stopLineDepartures[phGroup] += currentStopCount;
+		else
+		{
+			int leftTurners = (int) currentStopCount * leftTurnProportion; //NEW!!! distribute based on turning rate!
+			stopLineDepartures[0] += currentStopCount - leftTurners;
+			stopLineDepartures[1] += leftTurners;
+		}
+
+		/*
+
+		if (detect E phase2)
+			stopLineDepartures[phase2] += currentStopCount;
+		else
+			stopLineDepartures[phase0] += currentStopCount;
+			stopLineDepartures[phase1] += (int)currentStopCount*leftTurners;
+
+		if (detectorIndex.phase == 0 OR 1)
+		*/
+
+
+		//if (iPhase < 2) // serving A or B
+		//{										
+		//	int leftTurners = (int) currentStopCount * leftTurnProportion; //NEW!!! distribute based on turning rate!
+		//	if (iPhase == 0)
+		//		stopLineDepartures[iPhase] += currentStopCount - leftTurners;	// rightTurners
+		//	else
+		//		stopLineDepartures[iPhase] += leftTurners;
+		//}
+		//else
+		//	
+		//	stopLineDepartures[iPhase] += currentStopCount;
+
+	/*	stopLineDepartures[2] += currentStopCount;
+
+	
+		if (currentPhaseIndex)
+			stopLineDepartures[2]+=loopStDetectorData[detectorIndex].lastCount;
+		else
+			stopLineDepartures[2]+=loopStDetectorData[detectorIndex].lastCount;
+		
+
+		if (detectorIndex > 5 || (detectorIndex > 1 && detectorIndex < 4))*/
+				
+
+		//stopLineDepartures[iPhase] += currentStopCount;
+		loopStDetectorData[detectorIndex].lastCount = currentStopCount;	// previous reading
 	}
 
 	int diff;											/* deal with error from turning probability */
@@ -611,7 +668,7 @@ void estimateQueues(float currentTime)		//NEW
 		
 		if (phi != currentPhaseIndex && eQueueCount[phi] > 2)
 		{
-			eQueueCount[phi] += 2;		/*	stopped vehicles on stop line detector for phase A or B */
+			eQueueCount[phi] += 2;		/*	stopped vehicles on stop line detector for alls phases (A B c) */
 			if (phi == 2)
 				eQueueCount[phi] += 2;	/*	stopped vehicles on stop line detector for phase C*/
 
@@ -620,7 +677,8 @@ void estimateQueues(float currentTime)		//NEW
 
 	//qps_GUI_printf(">>> stopline arrivals: A[%i] B[%i] C[%i]", stoplineArrivals[0], stoplineArrivals[1], stoplineArrivals[2]); 
 	//qps_GUI_printf(">>> stopline count   : A[%i] B[%i] C[%i]", stopLineDepartures[0], stopLineDepartures[1], stopLineDepartures[2]); 
-	qps_GUI_printf("--> current queues  : A[%i] B[%i] C[%i]", eQueueCount[0], eQueueCount[1], eQueueCount[2]); 
+	
+	qps_GUI_printf("-------------------> current queues  : A[%i] B[%i] C[%i]", eQueueCount[0], eQueueCount[1], eQueueCount[2]); 
 	
 	/*
 	the difference between the number of expected arrival vehicles and the actually departed vehicles at the stop line
@@ -814,7 +872,7 @@ void qpx_NET_timeStep()
 				CONTROLDATA nxt = controlSeq.back();
 				controlSeq.pop_back();
 				if (isAllRed)
-					tempSeq.pop_back();								
+					tempSeq.pop_back();
 				currentControl = nxt.duration;
 				setControllerNext(nxt.phase);
 				nextPhase = nxt.phase;
