@@ -593,7 +593,7 @@ void estimateQueues(float currentTime)		//NEW
 		LOOP* stoplineLoop = loopStDetectorData[detectorIndex].stopLineDecLoop;
 		int currentStopCount = qpg_DTL_count(stoplineLoop, 0); 		/*	zero to count all vehicle types	*/
 
-		int	iPhase = getPhaseByProbability(detectorIndex);	// TODO: noisy function; find another solution
+		//int	iPhase = getPhaseByProbability(detectorIndex);	// prev implem - noisy function; find another solution
 		
 		int phGroup = getDetectorPhaseGroup(detectorIndex);
 
@@ -602,47 +602,11 @@ void estimateQueues(float currentTime)		//NEW
 		else
 		{
 			int leftTurners = (int) currentStopCount * leftTurnProportion; //NEW!!! distribute based on turning rate!
-			stopLineDepartures[0] += currentStopCount - leftTurners;
+			stopLineDepartures[0] += currentStopCount - leftTurners;	//TODO: allocate left over unit somewhere?
 			stopLineDepartures[1] += leftTurners;
-		}
-
-		/*
-
-		if (detect E phase2)
-			stopLineDepartures[phase2] += currentStopCount;
-		else
-			stopLineDepartures[phase0] += currentStopCount;
-			stopLineDepartures[phase1] += (int)currentStopCount*leftTurners;
-
-		if (detectorIndex.phase == 0 OR 1)
-		*/
-
-
-		//if (iPhase < 2) // serving A or B
-		//{										
-		//	int leftTurners = (int) currentStopCount * leftTurnProportion; //NEW!!! distribute based on turning rate!
-		//	if (iPhase == 0)
-		//		stopLineDepartures[iPhase] += currentStopCount - leftTurners;	// rightTurners
-		//	else
-		//		stopLineDepartures[iPhase] += leftTurners;
-		//}
-		//else
-		//	
-		//	stopLineDepartures[iPhase] += currentStopCount;
-
-	/*	stopLineDepartures[2] += currentStopCount;
-
-	
-		if (currentPhaseIndex)
-			stopLineDepartures[2]+=loopStDetectorData[detectorIndex].lastCount;
-		else
-			stopLineDepartures[2]+=loopStDetectorData[detectorIndex].lastCount;
+		}																//TODO: use currentPhaseIndex to discount difference btwn counts?
 		
-
-		if (detectorIndex > 5 || (detectorIndex > 1 && detectorIndex < 4))*/
-				
-
-		//stopLineDepartures[iPhase] += currentStopCount;
+		//stopLineDepartures[iPhase] += currentStopCount;	// prev implementation
 		loopStDetectorData[detectorIndex].lastCount = currentStopCount;	// previous reading
 	}
 
