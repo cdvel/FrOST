@@ -6,10 +6,13 @@
 #include <fstream>
 #include <string>
 #include <sstream>
+#include <random>
 #include <algorithm>
+
 #include <iomanip>
 #include <float.h>
-#include <random>
+#include <ctime>
+#include <cstdlib>
 #include "REAP1.h"
 #include "REAP1Policy.h"
 
@@ -214,6 +217,7 @@ namespace REAP1{
 		lambda = 0.1;  
 
 		random = false;
+
 		/* ------Agent initialised -----*/
 	}
 
@@ -370,7 +374,10 @@ namespace REAP1{
 	}
 
 	bool ReAP1::validAction(int action){
-		return true;
+		if (action >= 0 && action <3)	//TODO: improve
+			return true;
+		else
+			return false;
 	}
 	
 	void ReAP1::initPolicy(){
@@ -391,7 +398,16 @@ namespace REAP1{
 		dblVals.resize(qVals.size());
 		int maxdv = 0;
 
-		if(rand() < epsilon)		/*	exploring	*/
+		//	double udr = ((double) rand() / (RAND_MAX+1));	//OLD
+
+		
+		std::uniform_real_distribution<> realDist(0,1);
+		std::uniform_int_distribution<> intDist(0,	qVals.size());
+		
+
+		double udr = realDist(eng);
+
+		if(udr < epsilon)		/*	exploring	*/
 		{	
 			sAction = -1;			// TODO: check use
 			random = true;
@@ -400,7 +416,7 @@ namespace REAP1{
 			for(unsigned int ac= 0; ac < qVals.size(); ac++)
 			{
 				if(qVals[ac] > maxQ){		/*	exploiting	*/
-					sAction = action;
+					sAction = action;		/*	iterate between qVals and pick maximum	*/
 					maxQ = qVals[action];
 					maxdv = 0;
 					dblVals[maxdv] = sAction;
@@ -416,17 +432,18 @@ namespace REAP1{
 
 			if(maxdv > 0){
 				//int rndIndex = (int) (rand()*(maxdv + 1));
-				int rndIndex = rand() % (maxdv+1); // 0 to (maxdv)		//NEW 
+				std::uniform_int_distribution<> intDist2(0,	maxdv);
+				int rndIndex =	intDist2(eng);	//rand() % (maxdv+1); // 0 to (maxdv)		//NEW 
 				sAction = dblVals[rndIndex];
 			}
 		}
 
 		if(sAction == -1){		/*	random action iff qvals = 0 or exploring	*/
-			sAction = 	(int) (rand()*qVals.size());
+			sAction = 	intDist(eng);				//(int) (rand()%qVals.size());
 		}
 
-		while (! validAction(sAction)){
-			sAction = 	(int) (rand()*qVals.size());
+		while (!validAction(sAction)){
+			sAction = 	intDist(eng);	//(int) (rand()%qVals.size());
 		}
 	
 	

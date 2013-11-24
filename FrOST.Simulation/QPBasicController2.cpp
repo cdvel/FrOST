@@ -182,11 +182,21 @@ unsigned __stdcall ThreadFunc( void* data )
 	/* RL ------interaction steps-------	*/
 	if(!actionTaken)
 	{
+	/*	double udr =  qpg_UTL_randomDouble(APIRNG_MISC, 1);
+		if (udr <= instances[0].getEpsilon());
+		{
+			
+		}*/
+
 		int act = instances[0].selectAction(xState); //5	// TODO: check whether to init -state field- somewhere else...  
+	/*	double udr =  qpg_UTL_randomDouble(APIRNG_MISC, 1);
+		qps_GUI_printf("\a rnd = {%4.2f}", udr);*/
+
 		control.clear();
 		switch(act)
 		{
-			case 0:	control.push_back(MIN_GREEN);	//NEW control.push_back(GREEN_EXTENSION);	//NEW
+			case 0:	nextPhase = currentPhaseIndex;	// back to current phase; TODO: manage all-red
+					control.push_back(GREEN_EXTENSION);	//NEW
 					//currentControl += GREEN_EXTENSION;	//extend
 					break;
 			case 1: control.push_back(MIN_GREEN);	// switch next
@@ -194,6 +204,7 @@ unsigned __stdcall ThreadFunc( void* data )
 			case 2: control.push_back(0); control.push_back(MIN_GREEN); // skip next and switch
 					break;
 		}
+		qps_GUI_printf("\a ACTION %i",act);
 	}
 	else{
 		/*	When controller has completed the last action	*/
@@ -201,6 +212,8 @@ unsigned __stdcall ThreadFunc( void* data )
 		instances[0].setNewReward(currentDelay - prevDelay); //6.2
 		instances[0].updateQ();	//7
 		instances[0].updateState(); //8
+		qps_GUI_printf("\a REWARD {%4.2f} and UPDATE", currentDelay - prevDelay);
+		actionTaken = false;	//NEW
 	}
 	/* ------end RL interaction steps-------	*/
 
@@ -221,7 +234,7 @@ unsigned __stdcall ThreadFunc( void* data )
 			if (dur > 0)				/*	skip phase	*/
 			{
 				CONTROLDATA ctrl;
-				ctrl.phase = cPhase;		
+				ctrl.phase = cPhase;
 				ctrl.duration = dur;
 				tempSeq.insert(tempSeq.begin(),ctrl);
 			}
@@ -404,6 +417,7 @@ void qpx_NET_postOpen(void)
 
 	currentPhaseIndex = inState.phaseIndex;		//NEW
 	timeToRed = inState.greenRemaining;
+	srand(time(NULL));
 }
 
 
@@ -554,11 +568,13 @@ int getPhaseByProbability(int detectorIndex)
 	 */
 
 	int phase = 2;
-
+	//srand(time(0));
 	/*	C {0, 1, 4, 5} A or B {2, 3, 6, 7}	*/	
 	if (detectorIndex > 5 || (detectorIndex > 1 && detectorIndex < 4)) // A or B
 	{
-		double udr = ((double) rand() / (RAND_MAX+1));		/*	a uniformly distributed random value	*/
+		//double udr = ((double) rand() / (RAND_MAX+1));		/*	a uniformly distributed random value	*/
+		double udr =  qpg_UTL_randomDouble(APIRNG_MISC, 1);
+//		qps_GUI_printf("--rnd  %4.2f", udr);
 		phase = udr > leftTurnProportion ? 0 : 1; //A=0;  B = 1; C=2,
 	}
 
@@ -642,7 +658,7 @@ void estimateQueues(float currentTime)		//NEW
 	//qps_GUI_printf(">>> stopline arrivals: A[%i] B[%i] C[%i]", stoplineArrivals[0], stoplineArrivals[1], stoplineArrivals[2]); 
 	//qps_GUI_printf(">>> stopline count   : A[%i] B[%i] C[%i]", stopLineDepartures[0], stopLineDepartures[1], stopLineDepartures[2]); 
 	
-	qps_GUI_printf("-------------------> current queues  : A[%i] B[%i] C[%i]", eQueueCount[0], eQueueCount[1], eQueueCount[2]); 
+	//qps_GUI_printf(">> Current queues : A[%i] B[%i] C[%i]", eQueueCount[0], eQueueCount[1], eQueueCount[2]); 
 	
 	/*
 	the difference between the number of expected arrival vehicles and the actually departed vehicles at the stop line
@@ -767,9 +783,15 @@ void manageThread()
 {
 	if(!isThreadRunning)		/*	manage algorithm thread 	*/
 	{	
-		if(hThread != NULL)
-			CloseHandle (hThread);	/*  close finished thread	*/
-
+		if(hThread != NULL){
+			__try{
+				CloseHandle (hThread);	/*  close finished thread	*/
+			}
+			__except(EXCEPTION_EXECUTE_HANDLER)	/*	triggered when debugging	*/
+			{
+				qps_GUI_printf("CloseHandle Exception Gracefully Managed!"); /* debugger glitch:  http://stackoverflow.com/q/1550315/777877 */
+			}
+		}
 		if (isAllRed)
 			hThread = new HANDLE();
 		else
@@ -803,10 +825,11 @@ void qpx_NET_timeStep()
 
 	if (isSequenceReady)
 	{
-		if (!isAllRed)									/* discard sequences till next phase*/	
+		if (!isAllRed)									/*	discard sequences till next phase	*/	
 		{
-			std::vector<CONTROLDATA> _new (tempSeq);
-			controlSeq.clear();							//TODO: verify flag or catch exception
+			std::vector<CONTROLDATA> _new = tempSeq;	//NEW!! trying to copy
+			//std::vector<CONTROLDATA> _new (tempSeq);	//TODO: verify flag or catch exception
+			controlSeq.clear();							
 			controlSeq.reserve(_new.size());
 			controlSeq.swap(_new);
 		}
@@ -841,10 +864,9 @@ void qpx_NET_timeStep()
 				setControllerNext(nxt.phase);
 				nextPhase = nxt.phase;
 					
-				isAllRed = false;	//* MOVED HERE
+				isAllRed = false;	// MOVED HERE
 				nextPhase = (nextPhase == 2) ? 0: nextPhase+1;		/*	prepare next phase	*/
 				lastControlTime = currentTime;
-
 			}
 //			else
 //			{
@@ -852,9 +874,7 @@ void qpx_NET_timeStep()
 				//currentControl = MAX_GREEN;				/*	if no control seq, set max	green*/
 				//setControllerNext(nextPhase);
 //			}
-		
 			//* WAS HERE
-	
 		}
 	}
 }

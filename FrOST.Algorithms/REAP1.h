@@ -17,6 +17,8 @@ namespace std {
 #include <sstream>
 #include <iostream>
 #include <set>
+#include <random>
+#include <algorithm>
 #include "REAP1Policy.h"
 
 //using namespace System;
@@ -136,6 +138,8 @@ namespace REAP1 {
 		int action;				//TODO: Use enum instead
 		double reward;
 		bool random;
+
+		std::mt19937 eng;
 
 	};
 }
