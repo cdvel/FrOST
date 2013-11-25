@@ -388,7 +388,7 @@ namespace REAP1{
 	/*	 update state and select action	based on e-greedy	*/
 	/*	 invoked by the controller	*/
 	int ReAP1::selectAction(REAP1::ReAP1Policy::REAP1STATE iState){		
-		std::vector<double> qVals = policy.getQvalues(iState);
+		std::vector<double> qVals = policy.getQvalues(iState);		//TODO: check for vector iterator incompatibility
 		int sAction = -1;
 
 		// based on e-greedy

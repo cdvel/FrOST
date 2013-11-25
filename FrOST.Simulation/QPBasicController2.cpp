@@ -228,7 +228,7 @@ unsigned __stdcall ThreadFunc( void* data )
 		tempSeq.clear();			
 		tempSeq.reserve(MAX_SEQUENCE+1);		// TODO: check it
 
-		for (vector<int>::iterator i = control.begin(); i != control.end(); ++i)
+		for (vector<int>::const_iterator i = control.begin(); i != control.end(); ++i)
 		{
 			int dur = *i;
 			if (dur > 0)				/*	skip phase	*/
@@ -236,7 +236,8 @@ unsigned __stdcall ThreadFunc( void* data )
 				CONTROLDATA ctrl;
 				ctrl.phase = cPhase;
 				ctrl.duration = dur;
-				tempSeq.insert(tempSeq.begin(),ctrl);
+				auto bg =  tempSeq.begin();
+				tempSeq.insert(bg,ctrl);
 			}
 
 			message << phases[cPhase] << ":" << dur << "\t";
@@ -416,8 +417,8 @@ void qpx_NET_postOpen(void)
 	xState = inState;
 
 	currentPhaseIndex = inState.phaseIndex;		//NEW
-	timeToRed = inState.greenRemaining;
-	srand(time(NULL));
+	timeToRed = (float)inState.greenRemaining;
+	srand((int)time(NULL));
 }
 
 
@@ -617,7 +618,7 @@ void estimateQueues(float currentTime)		//NEW
 			stopLineDepartures[phGroup] += currentStopCount;
 		else
 		{
-			int leftTurners = (int) currentStopCount * leftTurnProportion; //NEW!!! distribute based on turning rate!
+			int leftTurners = (int) (currentStopCount * leftTurnProportion); //NEW!!! distribute based on turning rate!
 			stopLineDepartures[0] += currentStopCount - leftTurners;	//TODO: allocate left over unit somewhere?
 			stopLineDepartures[1] += leftTurners;
 		}																//TODO: use currentPhaseIndex to discount difference btwn counts?
@@ -682,7 +683,7 @@ void estimateDelay()			//TODO: is just delay of queueing vehicles
 void updateState()
 {
 	xState.phaseIndex = currentPhaseIndex;
-	xState.greenRemaining = timeToRed;
+	xState.greenRemaining = (int)timeToRed;	//TODO: deal with loss of data
 	std::vector<int> quLengths;
     int eq;
     for (eq= 2; eq >= 0; eq-- )
@@ -769,7 +770,9 @@ void probeUpstreamDetectors(float currentTime)
 		if (currentCount != loopUpDetectorData[i].lastCount) 		/*	add new vehicles detectedArrivals	*/
 		{
 			ARRIVALDATA dta;	
-			dta.speed = qpg_DTL_speed(upstLoop, APILOOP_COMPLETE);	// TODO:  validate for rubbish data overflown queues
+			dta.speed = qpg_DTL_speed(upstLoop, APILOOP_COMPLETE);	
+			if (dta.speed == 0.0)	/* validating overflown queue, replace with arbitrarily low speed */
+				dta.speed = (float)0.1;
 			dta.arrivalTime = getEstimatedArrivalTime(currentTime, dta.speed, UPSTREAM_DETECTOR_DISTANCE);
 			dta.detectionTime = currentTime;
 			dta.phase = getPhaseByProbability(i);
@@ -799,6 +802,12 @@ void manageThread()
 	}
 }
 
+
+const std::vector<CONTROLDATA> getTempSeq(){
+	return tempSeq;
+}
+
+
 /* ---------------------------------------------------------------------
 * every simulated step, works best at 0.5s resolution
 * --------------------------------------------------------------------- */
@@ -827,11 +836,23 @@ void qpx_NET_timeStep()
 	{
 		if (!isAllRed)									/*	discard sequences till next phase	*/	
 		{
-			std::vector<CONTROLDATA> _new = tempSeq;	//NEW!! trying to copy
-			//std::vector<CONTROLDATA> _new (tempSeq);	//TODO: verify flag or catch exception
+			//std::vector<CONTROLDATA> _new = 	//NEW!! trying to copy
+
+			const std::vector<CONTROLDATA> _new = getTempSeq();
+			std::vector<CONTROLDATA>::const_iterator i = _new.begin();
 			controlSeq.clear();							
 			controlSeq.reserve(_new.size());
-			controlSeq.swap(_new);
+			while(i != _new.end())
+			{
+				controlSeq.push_back(*i);//do stuff
+			  ++i;
+			}
+
+
+			//std::vector<CONTROLDATA> _new (tempSeq);	//TODO: verify flag or catch exception
+			//controlSeq.clear();							
+			//controlSeq.reserve(_new.size());
+			//controlSeq.swap(_new);
 		}
 
 		if (isFirstTime)
