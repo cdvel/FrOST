@@ -168,6 +168,7 @@ int seqIndex = 0;
 
 REAP1::ReAP1Policy::REAP1STATE xState;
 bool actionTaken = false;
+int action = -1;
 
 /* -----------------------------------------------------------------------
 * Runs algorithm on a separate thread and updates control sequence
@@ -178,24 +179,15 @@ unsigned __stdcall ThreadFunc( void* data )
 	isThreadRunning = true;
 	clock_t tStart = clock();
 	//TODO: check to clear control
-
+	int cPhase = nextPhase;
 	/* RL ------interaction steps-------	*/
 	if(!actionTaken)
 	{
-	/*	double udr =  qpg_UTL_randomDouble(APIRNG_MISC, 1);
-		if (udr <= instances[0].getEpsilon());
-		{
-			
-		}*/
-
-		int act = instances[0].selectAction(xState); //5	// TODO: check whether to init -state field- somewhere else...  
-	/*	double udr =  qpg_UTL_randomDouble(APIRNG_MISC, 1);
-		qps_GUI_printf("\a rnd = {%4.2f}", udr);*/
-
+		action = instances[0].selectAction(xState); //5	// TODO: check whether to init -state field- somewhere else...  
 		control.clear();
-		switch(act)
+		switch(action)
 		{
-			case 0:	nextPhase = currentPhaseIndex;	// back to current phase; TODO: manage all-red
+			case 0:	cPhase = currentPhaseIndex;	// back to current phase; TODO: manage all-red
 					control.push_back(GREEN_EXTENSION);	//NEW
 					//currentControl += GREEN_EXTENSION;	//extend
 					break;
@@ -204,7 +196,7 @@ unsigned __stdcall ThreadFunc( void* data )
 			case 2: control.push_back(0); control.push_back(MIN_GREEN); // skip next and switch
 					break;
 		}
-		qps_GUI_printf("\a ACTION %i",act);
+		//qps_GUI_printf("\a ACTION %i",action);
 	}
 	else{
 		/*	When controller has completed the last action	*/
@@ -224,7 +216,7 @@ unsigned __stdcall ThreadFunc( void* data )
 	{				/* late check to avoid algorithm latency issues */
 		string str;
 		std::stringstream message;
-		int cPhase = nextPhase;
+		//cPhase = nextPhase;
 		tempSeq.clear();			
 		tempSeq.reserve(MAX_SEQUENCE+1);		// TODO: check it
 
@@ -248,7 +240,7 @@ unsigned __stdcall ThreadFunc( void* data )
 		float hh = qpg_CFG_simulationTime();
 		float mm =  fmod(hh, 60); 
 		hh = hh / 60;
-		qps_GUI_printf("\a REAP: %im %4.2fs \t%4.2fs \t %s ",(int)hh ,mm, ttaken, message.str().c_str());
+		qps_GUI_printf("\a REAP: %im %4.2fs \t%4.2fs \t %s ACTION %i",(int)hh ,mm, ttaken, message.str().c_str(), action);
 	}
 	isThreadRunning = false;
 	isSequenceReady = tempSeq.size() > 0;
@@ -558,24 +550,13 @@ int lookupExpectedArrivals(int phaseIdx, int nEntries)		//NEW
 
 int getPhaseByProbability(int detectorIndex)
 {
-	/* TODO: Use better distribution e.g
-	 *
-	 * std::linear_congruential<int, 16807, 0, (int)((1U << 31) - 1)> eng;
-	 * eng.seed(eng);
-	 * std::tr1::uniform_real<double> unif(0, 1);
-	 * double udr = unif(eng);
-	 * OR
-	 * int qpg_UTL_randomNormalInteger(int stream, int mean, int std_dev); 
-	 */
-
 	int phase = 2;
 	//srand(time(0));
 	/*	C {0, 1, 4, 5} A or B {2, 3, 6, 7}	*/	
 	if (detectorIndex > 5 || (detectorIndex > 1 && detectorIndex < 4)) // A or B
 	{
-		//double udr = ((double) rand() / (RAND_MAX+1));		/*	a uniformly distributed random value	*/
 		double udr =  qpg_UTL_randomDouble(APIRNG_MISC, 1);
-//		qps_GUI_printf("--rnd  %4.2f", udr);
+		//	qps_GUI_printf("--rnd  %4.2f", udr);
 		phase = udr > leftTurnProportion ? 0 : 1; //A=0;  B = 1; C=2,
 	}
 
@@ -796,9 +777,13 @@ void manageThread()
 			}
 		}
 		if (isAllRed)
+		{
 			hThread = new HANDLE();
+		}
 		else
-			hThread = (HANDLE)_beginthreadex( NULL, 0, &ThreadFunc, NULL, 0, &threadID);		/* init new thread */		
+		{
+			hThread = (HANDLE)_beginthreadex( NULL, 0, &ThreadFunc, NULL, 0, &threadID);		/* init new thread */
+		}
 	}
 }
 
@@ -831,29 +816,37 @@ void qpx_NET_timeStep()
 
 	timeToRed = lastControlTime + currentControl; /*	switch points	*/
 	timeToNext = timeToRed + ALL_RED;
-
+	//qps_GUI_printf("toRed %f --- toNxt %f", timeToRed, timeToNext);
 	if (isSequenceReady)
 	{
+		if (action == 0)
+		{
+			timeToNext = timeToRed;
+			isAllRed = false;
+		}
+		
 		if (!isAllRed)									/*	discard sequences till next phase	*/	
 		{
-			//std::vector<CONTROLDATA> _new = 	//NEW!! trying to copy
-
-			const std::vector<CONTROLDATA> _new = getTempSeq();
+			//NEW!! TODO: test
+			std::vector<CONTROLDATA> _new;
+			_new = tempSeq;
 			std::vector<CONTROLDATA>::const_iterator i = _new.begin();
 			controlSeq.clear();							
 			controlSeq.reserve(_new.size());
 			while(i != _new.end())
 			{
-				controlSeq.push_back(*i);//do stuff
+				controlSeq.push_back(*i);
 			  ++i;
 			}
 
-
-			//std::vector<CONTROLDATA> _new (tempSeq);	//TODO: verify flag or catch exception
-			//controlSeq.clear();							
-			//controlSeq.reserve(_new.size());
-			//controlSeq.swap(_new);
 		}
+		else
+		//{
+		//	if (timeToNext >= currentTime)
+		//	{
+		//		isAllRed = false;	// TODO: improve fix
+		//	}
+		//}
 
 		if (isFirstTime)
 		{
@@ -862,15 +855,22 @@ void qpx_NET_timeStep()
 			isAllRed = false;
 		}
 
-		if (timeToRed-2 == currentTime)	//NEW	// TODO: tweak based on algo time
+		if (timeToRed-1 == currentTime)	//NEW	// TODO: tweak based on algo time
 		{								
 			actionTaken = true;		// control point: 2 secs before end of phase; compute next action
 		}
 
-		if (timeToRed == currentTime)
+		if (timeToRed == currentTime)	//NEW
 		{
-			setControllerAllRed();
-			isAllRed = true;
+			if (action != 0)
+			{
+				setControllerAllRed();
+				isAllRed = true;
+			}
+			else
+			{
+				isAllRed = false;
+			}
 		}
 
 		if (timeToNext == currentTime)
@@ -880,22 +880,26 @@ void qpx_NET_timeStep()
 				CONTROLDATA nxt = controlSeq.back();
 				controlSeq.pop_back();
 				if (isAllRed)
-					tempSeq.pop_back();
+					tempSeq.clear();
+					//tempSeq.pop_back();
 				currentControl = nxt.duration;
 				setControllerNext(nxt.phase);
 				nextPhase = nxt.phase;
 					
-				isAllRed = false;	// MOVED HERE
+				//* MOVED HERE
 				nextPhase = (nextPhase == 2) ? 0: nextPhase+1;		/*	prepare next phase	*/
 				lastControlTime = currentTime;
 			}
-//			else
-//			{
-					//NEW do nothing; extending current control
-				//currentControl = MAX_GREEN;				/*	if no control seq, set max	green*/
-				//setControllerNext(nextPhase);
-//			}
+
 			//* WAS HERE
+			isAllRed = false;
+		}else							//TODO: manage all red lock
+		{
+			if (timeToNext < currentTime)
+			{
+				isAllRed = false;
+				lastControlTime = currentTime;
+			}
 		}
 	}
 }
